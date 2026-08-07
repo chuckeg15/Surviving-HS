@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>CANDLEWAKE — render smoke test</title>
+    <style>
+      html, body { margin:0; height:100%; overflow:hidden; background:#05080a; }
+      #stage { position:fixed; inset:0; display:grid; place-items:center; }
+      #frame { position:relative; image-rendering:pixelated; }
+      #frame > canvas { position:absolute; inset:0; width:100%; height:100%;
+        image-rendering:pixelated; display:block; }
+      #world { z-index:1; } #ui { z-index:2; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><div id="frame">
+      <canvas id="world"></canvas><canvas id="ui"></canvas>
+    </div></div>
+    <script type="module" src="/src/dev/smoke.ts"></script>
+  </body>
+</html>
