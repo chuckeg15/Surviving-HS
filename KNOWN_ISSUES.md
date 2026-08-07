@@ -82,8 +82,14 @@ Still below the bar:
 - The hurt pose is a 2px shift; there is no genuine flinch drawing.
 - The `act` (interacting) pose is subtle at 1x.
 - Side-view figures are narrow and carry less identity than front-facing ones.
-- Portraits were not reworked and are now the weakest character art in the game
-  relative to the world sprites.
+- ~~Portraits were not reworked~~ — rebuilt. They now carry a tapered jaw,
+  eyes with a lash line, sclera, iris, pupil and a single catchlight, a
+  modelled nose, a neck the head actually sits on, an opening collar, and hair
+  with volume and a real hairline. Previously the face was a rounded brick with
+  two flat bars for eyes and a slab of hair on top — less structure than the
+  16x24 world sprite beside it, despite having five times the pixels.
+- Portrait hair still reads slightly helmet-like on the short styles; the
+  lengths (long/bob/braids) came out better than the crops.
 
 ## Visual issues still open
 

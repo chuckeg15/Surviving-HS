@@ -652,11 +652,14 @@ export const PORTRAIT_H = 48;
 export type Expression = 'neutral' | 'concerned' | 'angry' | 'sad' | 'surprised' | 'wry' | 'blank';
 
 /**
- * Portraits are a separate, larger drawing rather than an upscale of the world
- * sprite — but they use the SAME palette entries and the same hard-edged
- * shading, which is what keeps them from looking like they belong to another
- * game. Detail level is deliberately close to the world sprite's: a smoothly
- * shaded portrait next to a 16px sprite always reads as imported.
+ * Portraits are drawn, not upscaled, but they obey the same rules as the world
+ * sprites: hard edges, palette ramps, no gradients. The detail budget is higher
+ * because there are five times the pixels — and a portrait carrying LESS
+ * structure than the 16px sprite beside it is the clearest sign that two
+ * different hands (or none) made the art.
+ *
+ * Anatomy at 40x48: shoulders 38-48, neck 30-39, head 5-32 with a tapered jaw,
+ * eyes on row 18, mouth on row 31.
  */
 export function buildPortrait(look: ActorLook, expr: Expression = 'neutral'): HTMLCanvasElement {
   const s = surface(PORTRAIT_W, PORTRAIT_H);
@@ -666,183 +669,253 @@ export function buildPortrait(look: ActorLook, expr: Expression = 'neutral'): HT
   const darker = skinTone(look.skin, -2);
   const lite = skinTone(look.skin, 1);
 
-  // backing: a flat department-tinted field, deliberately plain so the head reads
-  rect(s, 0, 0, PORTRAIT_W, PORTRAIT_H, PAL.void1);
-  rect(s, 0, 0, PORTRAIT_W, PORTRAIT_H, mix(PAL.void1, look.accent, 0.12));
+  // Backing: flat and department-tinted, deliberately plain. A busy background
+  // behind a face at this size just competes with it.
+  rect(s, 0, 0, PORTRAIT_W, PORTRAIT_H, mix(PAL.void1, look.accent, 0.14));
   for (let y = 0; y < PORTRAIT_H; y += 4) rect(s, 0, y, PORTRAIT_W, 1, PAL.void0);
 
   const cx = 20;
-  const headW = look.frame === 'broad' ? 22 : look.frame === 'slight' ? 18 : 20;
+  const headW = look.frame === 'broad' ? 24 : look.frame === 'slight' ? 20 : 22;
   const hx = cx - (headW >> 1);
-  const headTop = 8;
-  const headH = 24;
+  const headTop = 5;
+  const headH = 28;
 
-  // shoulders / uniform
-  const shW = headW + (look.frame === 'broad' ? 14 : 10);
-  rect(s, cx - (shW >> 1), 36, shW, 12, PAL[u.body]);
-  rect(s, cx - (shW >> 1), 36, shW, 1, PAL[u.light]);
-  rect(s, cx - (shW >> 1), 36, 1, 12, PAL[u.light]);
-  rect(s, cx + (shW >> 1) - 1, 36, 1, 12, PAL[u.shade]);
-  rect(s, cx - 6, 36, 12, 3, PAL[u.collar]);
-  rect(s, cx - (shW >> 1) + 2, 41, 6, 1, look.accent); // rank/department flash
+  // --- shoulders --------------------------------------------------------
+  const shW = headW + (look.frame === 'broad' ? 16 : 12);
+  const sx = cx - (shW >> 1);
+  rect(s, sx, 38, shW, 10, PAL[u.body]);
+  rect(s, sx, 38, shW, 1, PAL[u.light]);
+  rect(s, sx, 38, 2, 10, PAL[u.light]);
+  rect(s, sx + shW - 2, 38, 2, 10, PAL[u.shade]);
+  // collar opens around the neck rather than sitting as a straight bar
+  rect(s, cx - 7, 38, 14, 4, PAL[u.collar]);
+  rect(s, cx - 5, 38, 10, 3, PAL[u.shade]);
+  rect(s, cx - 4, 38, 8, 2, PAL[u.body]);
+  rect(s, sx + 2, 43, 7, 1, look.accent); // department flash
+  rect(s, sx + 2, 44, 5, 1, mix(look.accent, PAL.void0, 0.4));
 
-  // neck
-  rect(s, cx - 4, 30, 8, 8, dark);
-  rect(s, cx - 4, 30, 8, 2, darker);
+  // --- neck -------------------------------------------------------------
+  rect(s, cx - 5, 29, 10, 10, dark);
+  rect(s, cx - 5, 29, 2, 10, base);
+  rect(s, cx - 5, 34, 10, 2, darker); // shadow cast by the jaw
 
-  // head
-  rect(s, hx, headTop, headW, headH, base);
-  rect(s, hx, headTop, 2, headH, lite);
-  rect(s, hx + headW - 2, headTop, 2, headH, dark);
-  rect(s, hx, headTop + headH - 2, headW, 2, dark);
-  rect(s, hx + 2, headTop, headW - 4, 1, lite);
-  // cheek shading
-  rect(s, hx + 1, headTop + 14, 2, 5, dark);
-  rect(s, hx + headW - 3, headTop + 14, 2, 5, darker);
+  // --- head, with a rounded crown and a tapered jaw ---------------------
+  for (let y = 0; y < headH; y++) {
+    let inset = 0;
+    if (y < 3) inset = 3 - y; // crown
+    if (y >= headH - 8) inset = Math.max(inset, Math.min(5, y - (headH - 9))); // jaw -> chin
+    rect(s, hx + inset, headTop + y, headW - inset * 2, 1, base);
+  }
+  // form shading: light from the upper left, the side of the face falls away
+  for (let y = 0; y < headH; y++) {
+    let inset = 0;
+    if (y < 3) inset = 3 - y;
+    if (y >= headH - 8) inset = Math.max(inset, Math.min(5, y - (headH - 9)));
+    rect(s, hx + inset, headTop + y, 2, 1, lite);
+    rect(s, hx + headW - inset - 3, headTop + y, 3, 1, dark);
+  }
+  rect(s, hx + 6, headTop + headH - 3, headW - 12, 2, darker); // under the chin
+  // cheekbones
+  rect(s, hx + 2, headTop + 17, 3, 4, dark);
+  rect(s, hx + headW - 5, headTop + 17, 3, 4, darker);
 
-  // hair
+  // --- hair -------------------------------------------------------------
   if (look.hair !== 'bald') {
     const c = look.hairColor;
     const cs = mix(c, PAL.void0, 0.4);
     const cl = mix(c, PAL.bone3, 0.3);
-    const rows =
-      look.hair === 'shaved' ? 3 : look.hair === 'crop' || look.hair === 'topknot' ? 6 : 7;
-    rect(s, hx - 1, headTop - 2, headW + 2, rows, c);
-    rect(s, hx - 1, headTop - 2, headW + 2, 2, cl);
-    rect(s, hx + headW - 2, headTop - 2, 3, rows, cs);
-    if (look.hair === 'long' || look.hair === 'bob' || look.hair === 'wave') {
-      const len = look.hair === 'bob' ? 14 : 26;
-      rect(s, hx - 3, headTop, 3, len, c);
-      rect(s, hx + headW, headTop, 3, len, cs);
+    const crownH = look.hair === 'shaved' ? 6 : 11;
+    for (let y = 0; y < crownH; y++) {
+      let inset = 0;
+      if (y < 3) inset = 3 - y;
+      rect(s, hx + inset - 1, headTop + y - 2, headW - inset * 2 + 2, 1, c);
     }
-    if (look.hair === 'braids') {
-      rect(s, hx - 3, headTop + 2, 3, 22, c);
-      rect(s, hx + headW, headTop + 2, 3, 22, cs);
-      for (let y = headTop + 5; y < headTop + 24; y += 4) {
-        rect(s, hx - 3, y, 3, 1, cs);
-        rect(s, hx + headW, y, 3, 1, c);
+    rect(s, hx, headTop - 2, headW - 6, 2, cl); // sheen off the crown
+    rect(s, hx + headW - 4, headTop - 1, 3, crownH, cs);
+
+    // Hairline: temples come down past the brow, the fringe does not. That
+    // asymmetry is the whole difference between hair and a helmet.
+    if (look.hair !== 'shaved') {
+      rect(s, hx - 1, headTop + crownH - 3, 5, 6, c);
+      rect(s, hx + headW - 4, headTop + crownH - 3, 5, 6, cs);
+      rect(s, hx + 4, headTop + crownH - 2, 5, 1, c);
+      px(s, hx + 9, headTop + crownH - 2, cs);
+    }
+    // side locks / lengths
+    const len =
+      look.hair === 'long' ? 26 : look.hair === 'bob' || look.hair === 'braids' ? 17 : 0;
+    if (len) {
+      rect(s, hx - 3, headTop + 2, 3, len, c);
+      rect(s, hx + headW, headTop + 2, 3, len, cs);
+      rect(s, hx - 3, headTop + 2, 1, len, cl);
+      if (look.hair === 'braids') {
+        for (let y = headTop + 6; y < headTop + 2 + len; y += 4) {
+          rect(s, hx - 3, y, 3, 1, cs);
+          rect(s, hx + headW, y, 3, 1, c);
+        }
       }
     }
-    if (look.hair === 'tail') rect(s, cx + (headW >> 1) - 1, headTop + 4, 4, 16, cs);
+    if (look.hair === 'tail') {
+      rect(s, hx + headW, headTop + 4, 4, 14, c);
+      rect(s, hx + headW + 3, headTop + 6, 1, 12, cs);
+    }
     if (look.hair === 'topknot') {
-      rect(s, cx - 3, headTop - 6, 6, 5, c);
-      rect(s, cx - 3, headTop - 6, 6, 2, cl);
+      rect(s, cx - 4, headTop - 8, 8, 6, c);
+      rect(s, cx - 4, headTop - 8, 8, 2, cl);
+      rect(s, cx + 2, headTop - 7, 2, 5, cs);
+    }
+    if (look.hair === 'wave') {
+      px(s, hx + 5, headTop + 1, cl);
+      px(s, hx + 11, headTop, cl);
+      rect(s, hx + headW - 7, headTop + 3, 4, 1, cs);
     }
   }
 
-  // --- expression -------------------------------------------------------
-  const eyeY = headTop + 11;
-  const lx = hx + 4;
-  const rx = hx + headW - 8;
-  const browOff =
-    expr === 'angry' ? 0 : expr === 'sad' || expr === 'concerned' ? -1 : expr === 'surprised' ? -2 : 0;
-
-  // eye sockets
-  rect(s, lx, eyeY, 4, 3, PAL.bone2);
-  rect(s, rx, eyeY, 4, 3, PAL.bone2);
-  rect(s, lx, eyeY, 4, 1, dark);
-  rect(s, rx, eyeY, 4, 1, dark);
-  if (expr === 'blank') {
-    // a smoothed patient: eyes open, nothing behind them
-    rect(s, lx, eyeY, 4, 3, PAL.bone1);
-    rect(s, rx, eyeY, 4, 3, PAL.bone1);
-  } else {
-    const pw = expr === 'surprised' ? 2 : 2;
-    rect(s, lx + 1, eyeY + 1, pw, 2, look.eyeColor);
-    rect(s, rx + 1, eyeY + 1, pw, 2, look.eyeColor);
-    px(s, lx + 1, eyeY + 1, mix(look.eyeColor, PAL.bone3, 0.5));
-    px(s, rx + 1, eyeY + 1, mix(look.eyeColor, PAL.bone3, 0.5));
+  // --- eyes -------------------------------------------------------------
+  const eyeY = headTop + 13;
+  const eyeW = 6;
+  const exL = hx + 3;
+  const exR = hx + headW - 3 - eyeW;
+  const blank = expr === 'blank';
+  for (const [ex, inner] of [
+    [exL, 1],
+    [exR, 2],
+  ] as [number, number][]) {
+    rect(s, ex, eyeY - 1, eyeW, 1, PAL.void0); // lash line
+    rect(s, ex, eyeY, eyeW, 3, blank ? PAL.bone1 : PAL.bone2);
+    if (!blank) {
+      // iris + pupil + a single catchlight: the catchlight is what makes a
+      // painted eye look wet rather than printed
+      rect(s, ex + inner, eyeY, 3, 3, look.eyeColor);
+      rect(s, ex + inner + 1, eyeY + 1, 1, 1, PAL.void0);
+      px(s, ex + inner, eyeY, PAL.bone3);
+    }
+    rect(s, ex, eyeY + 3, eyeW, 1, dark); // lower lid
+    rect(s, ex, eyeY, 1, 3, dark); // inner corner in shadow
   }
 
-  // brows carry most of the expression at this size
-  const brow = mix(look.hairColor, PAL.void0, 0.2);
+  // brows carry most of the expression
+  const brow = mix(look.hairColor, PAL.void0, 0.25);
+  const bY = eyeY - 5;
   if (expr === 'angry') {
-    rect(s, lx, eyeY - 3, 4, 1, brow);
-    px(s, lx + 3, eyeY - 2, brow);
-    rect(s, rx, eyeY - 3, 4, 1, brow);
-    px(s, rx, eyeY - 2, brow);
+    rect(s, exL, bY + 1, eyeW, 2, brow);
+    rect(s, exL + eyeW - 2, bY + 2, 2, 1, brow);
+    rect(s, exR, bY + 1, eyeW, 2, brow);
+    rect(s, exR, bY + 2, 2, 1, brow);
   } else if (expr === 'sad' || expr === 'concerned') {
-    rect(s, lx, eyeY - 3 + browOff, 4, 1, brow);
-    px(s, lx, eyeY - 4 + browOff, brow);
-    rect(s, rx, eyeY - 3 + browOff, 4, 1, brow);
-    px(s, rx + 3, eyeY - 4 + browOff, brow);
+    rect(s, exL, bY, eyeW, 2, brow);
+    rect(s, exL, bY - 1, 2, 1, brow);
+    rect(s, exR, bY, eyeW, 2, brow);
+    rect(s, exR + eyeW - 2, bY - 1, 2, 1, brow);
+  } else if (expr === 'surprised') {
+    rect(s, exL, bY - 2, eyeW, 2, brow);
+    rect(s, exR, bY - 2, eyeW, 2, brow);
   } else {
-    rect(s, lx, eyeY - 3 + browOff, 4, 1, brow);
-    rect(s, rx, eyeY - 3 + browOff, 4, 1, brow);
+    rect(s, exL, bY, eyeW, 2, brow);
+    rect(s, exR, bY, eyeW, 2, brow);
   }
 
-  // nose + mouth
-  rect(s, cx - 1, eyeY + 4, 2, 3, dark);
-  px(s, cx - 2, eyeY + 6, darker);
-  const my = eyeY + 10;
+  // --- nose -------------------------------------------------------------
+  rect(s, cx + 1, eyeY + 4, 1, 5, dark);
+  rect(s, cx - 2, eyeY + 9, 4, 1, dark);
+  px(s, cx - 2, eyeY + 8, darker);
+  px(s, cx + 1, eyeY + 9, darker);
+  rect(s, cx - 1, eyeY + 5, 1, 3, lite);
+
+  // --- mouth ------------------------------------------------------------
+  const my = eyeY + 13;
   switch (expr) {
     case 'angry':
+      rect(s, cx - 5, my, 10, 1, darker);
+      rect(s, cx - 6, my - 1, 2, 1, darker);
+      rect(s, cx + 4, my - 1, 2, 1, darker);
+      break;
+    case 'sad':
       rect(s, cx - 4, my, 8, 1, darker);
       px(s, cx - 5, my - 1, darker);
       px(s, cx + 4, my - 1, darker);
       break;
-    case 'sad':
-      rect(s, cx - 3, my, 6, 1, darker);
-      px(s, cx - 4, my - 1, darker);
-      px(s, cx + 3, my - 1, darker);
-      break;
     case 'surprised':
-      rect(s, cx - 2, my - 1, 4, 4, darker);
-      rect(s, cx - 1, my, 2, 2, PAL.void1);
+      rect(s, cx - 3, my - 2, 6, 5, darker);
+      rect(s, cx - 2, my - 1, 4, 3, PAL.void1);
       break;
     case 'wry':
-      rect(s, cx - 4, my, 7, 1, darker);
-      px(s, cx + 3, my - 1, darker);
+      rect(s, cx - 4, my, 8, 1, darker);
+      rect(s, cx + 4, my - 1, 2, 1, darker);
+      px(s, cx - 5, my + 1, dark);
       break;
     case 'blank':
-      rect(s, cx - 3, my, 6, 1, dark);
+      rect(s, cx - 4, my, 8, 1, dark);
       break;
     case 'concerned':
-      rect(s, cx - 3, my, 6, 1, darker);
-      px(s, cx - 4, my, darker);
+      rect(s, cx - 4, my, 7, 1, darker);
+      px(s, cx - 5, my + 1, darker);
       break;
     default:
-      rect(s, cx - 3, my, 6, 1, darker);
+      rect(s, cx - 4, my, 8, 1, darker);
+      px(s, cx - 5, my, dark);
+      px(s, cx + 4, my, dark);
+      break;
+  }
+  rect(s, cx - 3, my + 2, 6, 1, dark); // shadow under the lower lip
+
+  // --- accessories ------------------------------------------------------
+  switch (look.accessory) {
+    case 'visor':
+      rect(s, hx - 1, eyeY - 3, headW + 2, 8, PAL.iron1);
+      rect(s, hx - 1, eyeY - 3, headW + 2, 1, PAL.iron3);
+      rect(s, hx + 1, eyeY - 1, headW - 4, 4, PAL.halo1);
+      rect(s, hx + 1, eyeY - 1, headW - 4, 1, PAL.halo2);
+      rect(s, hx + 2, eyeY, 4, 1, PAL.halo4);
+      rect(s, hx - 1, eyeY + 4, headW + 2, 1, PAL.void1);
+      break;
+    case 'glasses':
+      rect(s, exL - 2, eyeY - 3, eyeW + 4, 8, PAL.iron4);
+      rect(s, exL - 1, eyeY - 2, eyeW + 2, 6, mix(PAL.bone3, PAL.brine2, 0.55));
+      rect(s, exR - 2, eyeY - 3, eyeW + 4, 8, PAL.iron4);
+      rect(s, exR - 1, eyeY - 2, eyeW + 2, 6, mix(PAL.bone3, PAL.brine2, 0.55));
+      rect(s, exL + eyeW + 2, eyeY, 3, 1, PAL.iron4);
+      rect(s, exL, eyeY - 1, 3, 1, PAL.bone3); // lens glare
+      rect(s, exR, eyeY - 1, 3, 1, PAL.bone3);
+      break;
+    case 'respirator':
+      rect(s, hx + 1, my - 6, headW - 2, 12, PAL.iron2);
+      rect(s, hx + 1, my - 6, headW - 2, 1, PAL.iron4);
+      rect(s, cx - 4, my - 3, 8, 6, PAL.void1);
+      rect(s, cx - 3, my - 2, 6, 4, PAL.iron1);
+      rect(s, cx - 3, my - 2, 6, 1, PAL.iron3);
+      break;
+    case 'cap':
+      rect(s, hx - 2, headTop - 6, headW + 4, 7, PAL.iron1);
+      rect(s, hx - 2, headTop - 6, headW + 4, 2, PAL.iron3);
+      rect(s, hx - 4, headTop + 1, headW + 8, 3, PAL.void1);
+      rect(s, hx - 4, headTop + 1, headW + 8, 1, PAL.iron2);
+      rect(s, cx - 4, headTop - 5, 8, 4, look.accent);
+      rect(s, cx - 4, headTop - 5, 8, 1, mix(look.accent, PAL.bone3, 0.4));
+      break;
+    case 'hood':
+      rect(s, hx - 4, headTop - 7, headW + 8, 10, PAL.iron1);
+      rect(s, hx - 4, headTop - 7, headW + 8, 2, PAL.iron3);
+      rect(s, hx - 4, headTop + 3, 4, 26, PAL.iron1);
+      rect(s, hx + headW, headTop + 3, 4, 26, PAL.void2);
+      rect(s, hx - 2, headTop + 2, headW + 4, 1, PAL.void1);
+      break;
+    case 'earpiece':
+      rect(s, hx + headW - 2, eyeY + 2, 4, 6, PAL.iron2);
+      rect(s, hx + headW - 2, eyeY + 2, 4, 1, PAL.iron4);
+      px(s, hx + headW, eyeY + 4, PAL.amber2);
+      break;
+    case 'scarf':
+      rect(s, cx - 9, 34, 18, 5, look.accent);
+      rect(s, cx - 9, 34, 18, 1, mix(look.accent, PAL.bone3, 0.35));
+      rect(s, cx - 9, 38, 18, 1, mix(look.accent, PAL.void0, 0.4));
+      break;
+    case 'none':
+    default:
       break;
   }
 
-  // accessories at portrait scale
-  if (look.accessory === 'visor') {
-    rect(s, hx - 1, eyeY - 1, headW + 2, 6, PAL.iron1);
-    rect(s, hx - 1, eyeY - 1, headW + 2, 1, PAL.iron3);
-    rect(s, hx + 1, eyeY + 1, headW - 4, 2, PAL.halo2);
-    rect(s, hx + 2, eyeY + 1, 3, 1, PAL.halo4);
-  } else if (look.accessory === 'glasses') {
-    rect(s, lx - 1, eyeY - 1, 6, 5, PAL.iron4);
-    rect(s, lx, eyeY, 4, 3, mix(PAL.bone3, PAL.brine2, 0.5));
-    rect(s, rx - 1, eyeY - 1, 6, 5, PAL.iron4);
-    rect(s, rx, eyeY, 4, 3, mix(PAL.bone3, PAL.brine2, 0.5));
-    rect(s, lx + 5, eyeY + 1, 2, 1, PAL.iron4);
-    rect(s, lx + 1, eyeY, 2, 1, PAL.bone3);
-  } else if (look.accessory === 'respirator') {
-    rect(s, hx + 2, my - 4, headW - 4, 9, PAL.iron2);
-    rect(s, hx + 2, my - 4, headW - 4, 1, PAL.iron4);
-    rect(s, cx - 3, my - 1, 6, 4, PAL.void1);
-    rect(s, cx - 2, my, 4, 2, PAL.iron1);
-  } else if (look.accessory === 'cap') {
-    rect(s, hx - 2, headTop - 4, headW + 4, 5, PAL.iron1);
-    rect(s, hx - 2, headTop - 4, headW + 4, 1, PAL.iron3);
-    rect(s, hx - 3, headTop + 1, headW + 6, 2, PAL.void1);
-    rect(s, cx - 3, headTop - 3, 6, 3, look.accent);
-  } else if (look.accessory === 'earpiece') {
-    rect(s, hx + headW - 1, eyeY + 1, 3, 4, PAL.iron2);
-    px(s, hx + headW, eyeY + 2, PAL.amber2);
-  } else if (look.accessory === 'hood') {
-    rect(s, hx - 3, headTop - 5, headW + 6, 8, PAL.iron1);
-    rect(s, hx - 3, headTop - 5, headW + 6, 2, PAL.iron3);
-    rect(s, hx - 3, headTop + 3, 3, 22, PAL.iron1);
-    rect(s, hx + headW, headTop + 3, 3, 22, PAL.void2);
-  } else if (look.accessory === 'scarf') {
-    rect(s, cx - 8, 34, 16, 4, look.accent);
-    rect(s, cx - 8, 34, 16, 1, mix(look.accent, PAL.bone3, 0.3));
-  }
-
-  // frame the portrait so it sits inside UI panels cleanly
+  // hard border so the portrait sits cleanly inside a UI panel
   rect(s, 0, 0, PORTRAIT_W, 1, PAL.void0);
   rect(s, 0, PORTRAIT_H - 1, PORTRAIT_W, 1, PAL.void0);
   rect(s, 0, 0, 1, PORTRAIT_H, PAL.void0);

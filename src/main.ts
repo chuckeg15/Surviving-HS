@@ -34,7 +34,7 @@ async function boot(): Promise<void> {
     app,
     perf: () => app.debugInfo,
     /** Jump straight to a scene, seeding a plausible state where needed. */
-    async gotoScene(name: string, opts: { background?: string } = {}) {
+    async gotoScene(name: string, opts: { background?: string; npc?: string } = {}) {
       const { ExploreScene } = await import('@/ui/explore');
       const { BattleScene } = await import('@/combat/battle');
       const seed = (room: string) => {
@@ -75,6 +75,15 @@ async function boot(): Promise<void> {
           app.replace(new ExploreScene());
           app.push(new BattleScene('registry-sentinel', app.scene!));
           break;
+        case 'dialogue': {
+          // Drops straight into a conversation so portraits and the speech box
+          // can be reviewed in the context they are actually seen in.
+          seed('c-commons');
+          const ex = new ExploreScene();
+          app.replace(ex);
+          ex.startDialogue(app, opts.npc ?? 'stray');
+          break;
+        }
         case 'battle-tutorial':
           seed('c-commons');
           app.replace(new ExploreScene());

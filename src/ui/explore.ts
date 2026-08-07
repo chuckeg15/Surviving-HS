@@ -9,7 +9,7 @@
  */
 
 import { App, Scene } from '@/game/app';
-import { Painter } from '@/ui/painter';
+import { LINE_H, Painter } from '@/ui/painter';
 import { TILE, VH, VW } from '@/core/screen';
 import { PAL, mix } from '@/art/palette';
 import { CELL_H, CELL_W, Expression, FACING_ROW, Facing, getPortrait } from '@/art/actors';
@@ -576,7 +576,16 @@ export class ExploreScene implements Scene {
 
     const choices = r.awaitingChoice ? r.visible : [];
     const choiceH = choices.length ? choices.length * 11 + 8 : 0;
-    const boxH = 52;
+    // The box grows to its content instead of always claiming a fixed slab of
+    // screen. A one-line reply was covering a quarter of the room behind it,
+    // which is exactly the space the player needs to read who else is present.
+    // Measured on the FULL line, not the revealed prefix, so it never resizes
+    // mid-typewriter.
+    const textScale = st.largeText ? 2 : 1;
+    const maxLines = st.largeText ? 3 : 5;
+    const lineH = LINE_H * textScale;
+    const lines = Math.max(1, Math.min(maxLines, p.measureBlock(r.text, VW - 28, textScale)));
+    const boxH = 8 + lines * lineH + 10;
     const top = VH - boxH - 6 - choiceH;
 
     // portrait
@@ -594,8 +603,8 @@ export class ExploreScene implements Scene {
       color: st.highContrastText ? PAL.bone3 : PAL.bone2,
       shadow: PAL.void0,
       limit: Math.floor(this.reveal),
-      scale: st.largeText ? 2 : 1,
-      maxLines: st.largeText ? 2 : 5,
+      scale: textScale,
+      maxLines,
     });
 
     if (this.reveal < r.text.length) {
