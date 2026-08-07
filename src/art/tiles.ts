@@ -42,7 +42,7 @@
  * half a texel on a uniform grid.
  */
 
-import { PAL } from '@/art/palette';
+import { PAL, mix } from '@/art/palette';
 import { Rng } from '@/core/rng';
 import {
   Surface,
@@ -188,13 +188,19 @@ function pipeV(s: Surface, x: number, y: number, h: number, dark: string, body: 
  * as a chequerboard.
  */
 function plateGround(s: Surface): void {
+  // The seam is the single most-repeated mark in the game — it appears on every
+  // deck tile of every room. At full ramp contrast it stops reading as plating
+  // and starts reading as graph paper, so it sits between iron0 and iron1 and
+  // the lit lip is dithered rather than solid.
+  const seam = mix(PAL.iron0, PAL.iron1, 0.5);
+  const lip = mix(PAL.iron1, PAL.iron2, 0.6);
   rect(s, 0, 0, 16, 16, PAL.iron1);
-  hline(s, 0, 0, 16, PAL.iron0);
-  vline(s, 0, 1, 15, PAL.iron0);
-  hline(s, 1, 1, 15, PAL.iron2);
-  vline(s, 1, 2, 14, PAL.iron2);
-  dither(s, 1, 15, 15, 1, PAL.iron0, 2);
-  dither(s, 15, 1, 1, 14, PAL.iron0, 2);
+  hline(s, 0, 0, 16, seam);
+  vline(s, 0, 1, 15, seam);
+  dither(s, 1, 1, 15, 1, lip, 3);
+  dither(s, 1, 2, 1, 14, lip, 3);
+  dither(s, 1, 15, 15, 1, seam, 2);
+  dither(s, 15, 1, 1, 14, seam, 2);
 }
 
 function drawPlateA(s: Surface): void {
@@ -433,10 +439,11 @@ function commonsGround(s: Surface, swapPhase: boolean): void {
       }
     }
   }
-  hline(s, 0, 0, 16, PAL.rust0);
-  vline(s, 0, 1, 15, PAL.rust0);
-  dither(s, 0, 8, 16, 1, PAL.rust0, 3);
-  dither(s, 8, 0, 1, 16, PAL.rust0, 3);
+  // Seams only, and softly. An earlier version drew a hard tile border AND a
+  // mid-tile cross, which stacked into two visible grids the moment the floor
+  // covered more than a few tiles.
+  dither(s, 0, 0, 16, 1, PAL.rust1, 2);
+  dither(s, 0, 1, 1, 15, PAL.rust1, 2);
 }
 
 function drawCommonsA(s: Surface): void {

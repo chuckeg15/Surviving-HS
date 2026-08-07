@@ -1,0 +1,869 @@
+/**
+ * Revenant combat.
+ *
+ * Two crew project casts through wrist looms and the casts fight. That premise
+ * does the work a combat system in a mystery has to do: every enemy is a dead
+ * person with a serial number, so SCANNING one is an investigative act and
+ * destroying one erases evidence. The player is told this by the interface, not
+ * by a tutorial box.
+ *
+ * Design rules:
+ *  - Integrity is the body; Coherence is the cast's grip on itself and is spent
+ *    to act. A revenant at zero coherence does not simply stop — it guttering,
+ *    which is worse than being unable to act.
+ *  - No ability is a renamed damage number. Every one of them either changes
+ *    what the opponent can do next turn, changes what you can survive, or tells
+ *    you something.
+ *  - Enemy AI reads the actual board state. It is short, but it is not random.
+ */
+
+import { App, Scene } from '@/game/app';
+import { Painter } from '@/ui/painter';
+import { VH, VW } from '@/core/screen';
+import { PAL, mix } from '@/art/palette';
+import { audio } from '@/core/audio';
+import { settings } from '@/core/settings';
+import { Rng } from '@/core/rng';
+import { GameState } from '@/game/state';
+import { bus } from '@/core/events';
+
+// =====================================================================
+// DATA
+// =====================================================================
+
+export type Aspect = 'kinetic' | 'thermal' | 'field' | 'cognitive' | 'corrosive';
+
+export const ASPECT_MARK: Record<Aspect, string> = {
+  kinetic: 'KIN',
+  thermal: 'THR',
+  field: 'FLD',
+  cognitive: 'COG',
+  corrosive: 'COR',
+};
+
+export const ASPECT_COLOR: Record<Aspect, string> = {
+  kinetic: PAL.bone1,
+  thermal: PAL.amber2,
+  field: PAL.halo3,
+  cognitive: PAL.bruise3,
+  corrosive: PAL.moss4,
+};
+
+/** a beats b at 1.5x; b resists a at 0.66x. A short cycle stays learnable. */
+const BEATS: Record<Aspect, Aspect> = {
+  kinetic: 'field',
+  thermal: 'kinetic',
+  field: 'cognitive',
+  cognitive: 'corrosive',
+  corrosive: 'thermal',
+};
+
+export function effectiveness(atk: Aspect, def: Aspect): number {
+  if (BEATS[atk] === def) return 1.5;
+  if (BEATS[def] === atk) return 0.66;
+  return 1;
+}
+
+export type StatusId =
+  | 'frayed'
+  | 'static'
+  | 'anchored'
+  | 'bleedover'
+  | 'sealed'
+  | 'guttering';
+
+export const STATUS_INFO: Record<StatusId, { name: string; blurb: string; bad: boolean }> = {
+  frayed: { name: 'FRAYED', blurb: 'Loses coherence every turn.', bad: true },
+  static: { name: 'STATIC', blurb: 'Attacks may miss. Cannot scan.', bad: true },
+  anchored: { name: 'ANCHORED', blurb: 'Cannot withdraw.', bad: true },
+  bleedover: { name: 'BLEEDOVER', blurb: 'Next hit taken is amplified.', bad: true },
+  sealed: { name: 'SEALED', blurb: 'Support abilities locked.', bad: true },
+  guttering: { name: 'GUTTERING', blurb: 'Out of coherence. Taking escalating damage.', bad: true },
+};
+
+export type AbilityKind = 'strike' | 'guard' | 'mend' | 'disrupt' | 'read' | 'control';
+
+export interface Ability {
+  id: string;
+  name: string;
+  kind: AbilityKind;
+  aspect: Aspect;
+  cost: number;
+  power: number;
+  desc: string;
+  /** Applied to the target on hit. */
+  inflict?: { status: StatusId; turns: number; chance: number };
+  /** Applied to the user. */
+  selfBuff?: { guard?: number; coherence?: number; integrity?: number };
+  /** Never misses, ignores STATIC accuracy loss. */
+  sure?: boolean;
+}
+
+export interface RevenantDef {
+  id: string;
+  name: string;
+  /** The person the cast was. Shown when scanned — this is the point. */
+  castOf: string;
+  serial: string;
+  aspect: Aspect;
+  integrity: number;
+  coherence: number;
+  grip: number;
+  abilities: Ability[];
+  /** Revealed by a successful scan. */
+  reading: string;
+}
+
+const A = (a: Ability): Ability => a;
+
+const ABILITIES: Record<string, Ability> = {
+  'set-brace': A({
+    id: 'set-brace', name: 'SET BRACE', kind: 'guard', aspect: 'kinetic', cost: 1, power: 0,
+    desc: 'Halves damage this turn and restores coherence.',
+    selfBuff: { guard: 0.5, coherence: 2 },
+  }),
+  'ratchet': A({
+    id: 'ratchet', name: 'RATCHET', kind: 'strike', aspect: 'kinetic', cost: 2, power: 12,
+    desc: 'A short mechanical strike. Reliable.', sure: true,
+  }),
+  'shear-pin': A({
+    id: 'shear-pin', name: 'SHEAR PIN', kind: 'control', aspect: 'kinetic', cost: 3, power: 6,
+    desc: 'Pins the target in place. Anchored.',
+    inflict: { status: 'anchored', turns: 3, chance: 1 },
+  }),
+  'gasket-read': A({
+    id: 'gasket-read', name: 'READ WEAR', kind: 'read', aspect: 'kinetic', cost: 1, power: 0,
+    desc: 'Reads the cast. Reveals aspect, serial, and origin.',
+  }),
+  'cauterise': A({
+    id: 'cauterise', name: 'CAUTERISE', kind: 'mend', aspect: 'thermal', cost: 3, power: 0,
+    desc: 'Restores integrity and clears one condition.',
+    selfBuff: { integrity: 16 },
+  }),
+  'flare-off': A({
+    id: 'flare-off', name: 'FLARE OFF', kind: 'strike', aspect: 'thermal', cost: 3, power: 15,
+    desc: 'Dumps heat. May leave the target frayed.',
+    inflict: { status: 'frayed', turns: 3, chance: 0.6 },
+  }),
+  'bank-heat': A({
+    id: 'bank-heat', name: 'BANK HEAT', kind: 'guard', aspect: 'thermal', cost: 1, power: 0,
+    desc: 'Stores the next blow as coherence instead of damage.',
+    selfBuff: { guard: 0.4, coherence: 3 },
+  }),
+  'lamplight': A({
+    id: 'lamplight', name: 'LAMPLIGHT', kind: 'mend', aspect: 'field', cost: 2, power: 0,
+    desc: 'Restores integrity. Cheap, steady, never enough on its own.',
+    selfBuff: { integrity: 11 },
+  }),
+  'clean-field': A({
+    id: 'clean-field', name: 'CLEAN FIELD', kind: 'mend', aspect: 'field', cost: 2, power: 0,
+    desc: 'Clears all conditions and restores a little coherence.',
+    selfBuff: { coherence: 2 },
+  }),
+  'suture': A({
+    id: 'suture', name: 'SUTURE', kind: 'strike', aspect: 'field', cost: 2, power: 10,
+    desc: 'A field seam drawn through the target. Leaves bleedover.',
+    inflict: { status: 'bleedover', turns: 2, chance: 0.75 },
+  }),
+  'tally': A({
+    id: 'tally', name: 'TALLY', kind: 'read', aspect: 'cognitive', cost: 1, power: 0,
+    desc: 'Reads the cast and its remaining coherence exactly.',
+  }),
+  'strike-record': A({
+    id: 'strike-record', name: 'STRIKE RECORD', kind: 'disrupt', aspect: 'cognitive', cost: 3, power: 8,
+    desc: 'Erases part of what the cast knows how to do. Sealed.',
+    inflict: { status: 'sealed', turns: 3, chance: 0.85 },
+  }),
+  'audit': A({
+    id: 'audit', name: 'AUDIT', kind: 'disrupt', aspect: 'cognitive', cost: 2, power: 4,
+    desc: 'Drains coherence hard. Damage is incidental.',
+    inflict: { status: 'frayed', turns: 4, chance: 0.9 },
+  }),
+  'truncheon': A({
+    id: 'truncheon', name: 'TRUNCHEON', kind: 'strike', aspect: 'kinetic', cost: 2, power: 14,
+    desc: 'Watch-issue. Blunt and correct.',
+  }),
+  'restrain': A({
+    id: 'restrain', name: 'RESTRAIN', kind: 'control', aspect: 'kinetic', cost: 3, power: 4,
+    desc: 'Anchors the target and seals its support.',
+    inflict: { status: 'anchored', turns: 2, chance: 1 },
+  }),
+  'kiln-draw': A({
+    id: 'kiln-draw', name: 'KILN DRAW', kind: 'strike', aspect: 'thermal', cost: 4, power: 20,
+    desc: 'Everything at once. Costs most of your grip on yourself.',
+  }),
+  'quench': A({
+    id: 'quench', name: 'QUENCH', kind: 'guard', aspect: 'corrosive', cost: 2, power: 0,
+    desc: 'Dulls the next two blows.',
+    selfBuff: { guard: 0.45, coherence: 1 },
+  }),
+  // --- enemy kit -------------------------------------------------------
+  'deny': A({
+    id: 'deny', name: 'DENY', kind: 'disrupt', aspect: 'field', cost: 2, power: 9,
+    desc: 'Refuses the projection. Static.',
+    inflict: { status: 'static', turns: 2, chance: 0.7 },
+  }),
+  'seal-order': A({
+    id: 'seal-order', name: 'SEAL ORDER', kind: 'control', aspect: 'field', cost: 3, power: 5,
+    desc: 'Locks support abilities.',
+    inflict: { status: 'sealed', turns: 3, chance: 0.9 },
+  }),
+  'writ': A({
+    id: 'writ', name: 'WRIT OF DISTRAINT', kind: 'strike', aspect: 'field', cost: 3, power: 17,
+    desc: 'Administrative force, applied bodily.',
+  }),
+  'file-away': A({
+    id: 'file-away', name: 'FILE AWAY', kind: 'guard', aspect: 'field', cost: 1, power: 0,
+    desc: 'Withdraws behind procedure.',
+    selfBuff: { guard: 0.45, coherence: 3 },
+  }),
+  'baton': A({
+    id: 'baton', name: 'BATON', kind: 'strike', aspect: 'kinetic', cost: 2, power: 11,
+    desc: 'Standard issue.',
+  }),
+  'caution': A({
+    id: 'caution', name: 'CAUTION', kind: 'control', aspect: 'kinetic', cost: 2, power: 3,
+    desc: 'A formal warning, delivered hard.',
+    inflict: { status: 'anchored', turns: 2, chance: 0.8 },
+  }),
+  'loom-tap': A({
+    id: 'loom-tap', name: 'LOOM TAP', kind: 'strike', aspect: 'thermal', cost: 2, power: 8,
+    desc: 'A demonstration blow, pulled at the last moment.',
+  }),
+};
+
+export const TESSERAE: Record<string, RevenantDef> = {
+  'grey-liner': {
+    id: 'grey-liner', name: 'GREY LINER', castOf: 'Ostrow Kell, spinehand, d. 2233',
+    serial: 'LT9-0447', aspect: 'kinetic', integrity: 62, coherence: 10, grip: 6,
+    abilities: [ABILITIES.ratchet, ABILITIES['set-brace'], ABILITIES['shear-pin'], ABILITIES['gasket-read']],
+    reading: 'A spinehand who died in the ducts and still moves like the ducts are narrow.',
+  },
+  lampwright: {
+    id: 'lampwright', name: 'LAMPWRIGHT', castOf: 'Sera Ondt, medtech, d. 2230',
+    serial: 'LT9-0219', aspect: 'field', integrity: 55, coherence: 12, grip: 7,
+    abilities: [ABILITIES.suture, ABILITIES.lamplight, ABILITIES['clean-field'], ABILITIES['gasket-read']],
+    reading: 'A medtech. Keeps trying to stabilise things, including its opponent.',
+  },
+  tallyman: {
+    id: 'tallyman', name: 'TALLYMAN', castOf: 'Ferris Loom, registry clerk, d. 2228',
+    serial: 'LT9-0102', aspect: 'cognitive', integrity: 52, coherence: 14, grip: 8,
+    abilities: [ABILITIES.audit, ABILITIES['strike-record'], ABILITIES.tally, ABILITIES['set-brace']],
+    reading: 'A clerk. Wins by making the other thing unable to do its job.',
+  },
+  truncheon: {
+    id: 'truncheon', name: 'TRUNCHEON', castOf: 'Petty Halden Ross, Watch, d. 2234',
+    serial: 'LT9-0511', aspect: 'kinetic', integrity: 70, coherence: 9, grip: 5,
+    abilities: [ABILITIES.truncheon, ABILITIES.restrain, ABILITIES['set-brace'], ABILITIES['gasket-read']],
+    reading: 'Watch cast. Slow, heavy, and extremely difficult to talk around.',
+  },
+  kiln: {
+    id: 'kiln', name: 'KILN', castOf: 'Ada Verrow, loom tech, d. 2231',
+    serial: 'LT9-0388', aspect: 'thermal', integrity: 58, coherence: 12, grip: 7,
+    abilities: [ABILITIES['flare-off'], ABILITIES['kiln-draw'], ABILITIES['bank-heat'], ABILITIES.cauterise],
+    reading: 'A loom tech who ran her projector too hot and knew she was doing it.',
+  },
+};
+
+export interface EncounterDef {
+  id: string;
+  title: string;
+  enemy: RevenantDef;
+  opponent: string;
+  /** Loss here is a story beat, not a game over. */
+  lossIsFatal: boolean;
+  intro: string;
+  onWin?: (s: GameState) => void;
+  onScan?: (s: GameState) => void;
+  onLose?: (s: GameState) => void;
+  canFlee: boolean;
+}
+
+const secondLoom: RevenantDef = {
+  id: 'second-loom', name: 'SECOND LOOM', castOf: 'a training cast, unnamed',
+  serial: 'TRN-0001', aspect: 'thermal', integrity: 34, coherence: 8, grip: 5,
+  abilities: [ABILITIES['loom-tap'], ABILITIES['bank-heat']],
+  reading: 'A training cast. No person in it at all, which is its own kind of unsettling.',
+};
+
+const bailiff: RevenantDef = {
+  id: 'bailiff', name: 'BAILIFF', castOf: 'Watch drone pattern, no person',
+  serial: 'LT9-W03', aspect: 'kinetic', integrity: 58, coherence: 10, grip: 7,
+  abilities: [ABILITIES.baton, ABILITIES.caution, ABILITIES['set-brace']],
+  reading: 'Not a cast at all — a pattern. The Watch runs three of these and calls them all Bailiff.',
+};
+
+const sentinel: RevenantDef = {
+  id: 'registry-sentinel', name: 'REGISTRY SENTINEL', castOf: 'UNRESOLVED \x7f serial prefix KH-11',
+  serial: 'KH-11-4402', aspect: 'field', integrity: 78, coherence: 14, grip: 8,
+  abilities: [ABILITIES.writ, ABILITIES.deny, ABILITIES['seal-order'], ABILITIES['file-away']],
+  reading:
+    'The cast will not name itself. The serial is not a ship serial. KH is a place, and the ' +
+    'place it names was struck off the register six years ago.',
+};
+
+export const ENCOUNTERS: Record<string, EncounterDef> = {
+  'tutorial-spar': {
+    id: 'tutorial-spar', title: 'PRACTICE PROJECTION', enemy: secondLoom, opponent: 'cael',
+    lossIsFatal: false, canFlee: true,
+    intro: 'Cael brings up a training cast. It has no face. It is not supposed to.',
+    onWin: (s) => {
+      s.setFlag('tutorial-spar', true);
+      s.adjustRelation('cael', 10);
+    },
+    onLose: (s) => s.adjustRelation('cael', 4),
+  },
+  'ivo-bailiff': {
+    id: 'ivo-bailiff', title: 'PETTY IVO \x7f SHIP\'S WATCH', enemy: bailiff, opponent: 'ivo',
+    lossIsFatal: false, canFlee: true,
+    intro: 'Ivo projects without enthusiasm. He warned you. He wrote it down first.',
+    onWin: (s) => {
+      s.setFlag('duct-open', true);
+      s.suspicion += 25;
+      s.adjustRelation('ivo', -25);
+      s.adjustFaction('watch', -20);
+      s.note('Forced the duct hatch past Petty Ivo.');
+    },
+    onLose: (s) => {
+      s.suspicion += 12;
+      s.note('Lost to Ivo at the hatch.');
+    },
+  },
+  'registry-sentinel': {
+    id: 'registry-sentinel', title: 'SOMETHING IS STANDING THERE', enemy: sentinel, opponent: '',
+    lossIsFatal: false, canFlee: false,
+    intro:
+      'It is already projected. It has been standing in the dark over the hold, waiting for ' +
+      'somebody to be here, for however long somebody has not been.',
+    onWin: (s) => {
+      s.setFlag('sentinel-beaten', true);
+      s.note('Put down the sentinel in duct 9-C.');
+    },
+    onScan: (s) => {
+      s.findClue('tessera-serial');
+      s.setFlag('scanned-sentinel', true);
+    },
+    onLose: (s) => {
+      s.setFlag('sentinel-beaten', true);
+      s.suspicion += 5;
+      s.note('The sentinel put you down in duct 9-C. It did not finish the job.');
+    },
+  },
+};
+
+// =====================================================================
+// ENGINE
+// =====================================================================
+
+interface Combatant {
+  def: RevenantDef;
+  integrity: number;
+  maxIntegrity: number;
+  coherence: number;
+  maxCoherence: number;
+  statuses: Map<StatusId, number>;
+  guard: number;
+  /** Set once the player scans it. */
+  known: boolean;
+  ghost: number;
+}
+
+function makeCombatant(def: RevenantDef, known = false): Combatant {
+  return {
+    def,
+    integrity: def.integrity,
+    maxIntegrity: def.integrity,
+    coherence: def.coherence,
+    maxCoherence: def.coherence,
+    statuses: new Map(),
+    guard: 0,
+    known,
+    ghost: 1,
+  };
+}
+
+type Phase = 'intro' | 'menu' | 'abilities' | 'resolve' | 'message' | 'done';
+
+export class BattleScene implements Scene {
+  readonly id = 'battle';
+  readonly hidesWorld = true;
+
+  private enc: EncounterDef;
+  private me!: Combatant;
+  private foe!: Combatant;
+  private phase: Phase = 'intro';
+  private menuIndex = 0;
+  private abilityIndex = 0;
+  private log: string[] = [];
+  private msgQueue: string[] = [];
+  private timer = 0;
+  private rng = new Rng(Date.now() & 0xffff);
+  private result: 'win' | 'lose' | 'flee' | null = null;
+  private turn = 0;
+  private shakeFx = 0;
+  private flashFx = 0;
+
+  constructor(
+    encounterId: string,
+    private back: Scene,
+  ) {
+    this.enc = ENCOUNTERS[encounterId] ?? ENCOUNTERS['tutorial-spar'];
+  }
+
+  enter(app: App): void {
+    const tid = app.state.activeTessera || app.state.tesserae[0] || 'grey-liner';
+    this.me = makeCombatant(TESSERAE[tid] ?? TESSERAE['grey-liner'], true);
+    this.foe = makeCombatant(this.enc.enemy, false);
+    this.msgQueue = [this.enc.intro];
+    this.phase = 'intro';
+    audio.setMusic(this.enc.id === 'registry-sentinel' ? 'battleBoss' : 'battle', { fade: 0.6 });
+    audio.sfx('battle.start');
+    bus.emit('combat:start', { encounterId: this.enc.id });
+  }
+
+  // --- rules ------------------------------------------------------------
+
+  private speed(): number {
+    return settings.get().combatSpeed;
+  }
+
+  private hasStatus(c: Combatant, s: StatusId): boolean {
+    return (c.statuses.get(s) ?? 0) > 0;
+  }
+
+  private applyStatus(c: Combatant, s: StatusId, turns: number): void {
+    c.statuses.set(s, Math.max(c.statuses.get(s) ?? 0, turns));
+    audio.sfx('status.apply');
+  }
+
+  private tickStatuses(c: Combatant, name: string): void {
+    for (const [k, v] of [...c.statuses]) {
+      if (v <= 1) c.statuses.delete(k);
+      else c.statuses.set(k, v - 1);
+    }
+    if (this.hasStatus(c, 'frayed')) {
+      c.coherence = Math.max(0, c.coherence - 2);
+      this.msg(`${name} frays. Coherence slips.`);
+    }
+    if (c.coherence <= 0) {
+      this.applyStatus(c, 'guttering', 2);
+    }
+    if (this.hasStatus(c, 'guttering')) {
+      const d = 4;
+      c.integrity = Math.max(0, c.integrity - d);
+      this.msg(`${name} is guttering \x7f ${d} integrity lost.`);
+    }
+  }
+
+  private damage(target: Combatant, source: Combatant, ability: Ability, name: string): void {
+    const eff = effectiveness(ability.aspect, target.def.aspect);
+    let dmg = ability.power;
+    dmg *= eff;
+    if (target.guard > 0) dmg *= 1 - target.guard;
+    if (this.hasStatus(target, 'bleedover')) {
+      dmg *= 1.5;
+      target.statuses.delete('bleedover');
+    }
+    if (this.hasStatus(target, 'guttering')) dmg *= 1.3;
+    dmg = Math.max(1, Math.round(dmg));
+    target.ghost = target.integrity / target.maxIntegrity;
+    target.integrity = Math.max(0, target.integrity - dmg);
+    audio.sfx(`hit.${ability.aspect}` as never);
+    this.shakeFx = eff > 1 ? 3 : 2;
+    this.flashFx = 0.25;
+    const tag = eff > 1 ? ' \x7f it bites deep' : eff < 1 ? ' \x7f it barely takes' : '';
+    this.msg(`${name} \x7f ${dmg} integrity${tag}`);
+    void source;
+  }
+
+  private useAbility(user: Combatant, target: Combatant, ab: Ability, userName: string): void {
+    if (user.coherence < ab.cost) {
+      this.msg(`${userName} cannot hold the shape. Not enough coherence.`);
+      return;
+    }
+    user.coherence -= ab.cost;
+
+    if (ab.kind === 'read') {
+      if (this.hasStatus(user, 'static')) {
+        this.msg('Static. The read will not resolve.');
+        return;
+      }
+      target.known = true;
+      audio.sfx('scan');
+      this.msg(`READ \x7f ${target.def.name}: ${target.def.reading}`);
+      bus.emit('combat:scanned', { revenantId: target.def.id });
+      return;
+    }
+
+    if (ab.selfBuff) {
+      if (ab.selfBuff.guard) user.guard = ab.selfBuff.guard;
+      if (ab.selfBuff.coherence) {
+        user.coherence = Math.min(user.maxCoherence, user.coherence + ab.selfBuff.coherence);
+      }
+      if (ab.selfBuff.integrity) {
+        const heal = ab.selfBuff.integrity;
+        user.integrity = Math.min(user.maxIntegrity, user.integrity + heal);
+        audio.sfx('heal');
+        this.msg(`${userName} holds itself back together. +${heal} integrity.`);
+      }
+      if (ab.id === 'clean-field' || ab.id === 'cauterise') {
+        user.statuses.clear();
+        this.msg(`${userName} clears.`);
+      }
+      if (ab.kind === 'guard') {
+        audio.sfx('shield');
+        this.msg(`${userName} braces.`);
+      }
+    }
+
+    if (ab.power > 0) {
+      const miss = !ab.sure && this.hasStatus(user, 'static') && this.rng.chance(0.35);
+      if (miss) {
+        this.msg(`${userName} \x7f the projection slips. Nothing lands.`);
+        return;
+      }
+      this.damage(target, user, ab, `${userName} uses ${ab.name}`);
+    }
+
+    if (ab.inflict && target.integrity > 0) {
+      if (this.rng.chance(ab.inflict.chance)) {
+        this.applyStatus(target, ab.inflict.status, ab.inflict.turns);
+        this.msg(`${target.def.name} is ${STATUS_INFO[ab.inflict.status].name}.`);
+      }
+    }
+  }
+
+  /**
+   * Enemy decision: a short priority list that reads the board. Not random,
+   * not omniscient — it will heal when hurt, brace when it cannot afford a
+   * trade, and prefer an aspect that beats what it is looking at.
+   */
+  private enemyChoose(): Ability {
+    const kit = this.foe.def.abilities.filter((a) => this.foe.coherence >= a.cost);
+    if (!kit.length) return this.foe.def.abilities[0];
+
+    const lowCoherence = this.foe.coherence <= 3;
+    const hurt = this.foe.integrity / this.foe.maxIntegrity < 0.35;
+
+    if (lowCoherence) {
+      const guard = kit.find((a) => a.kind === 'guard');
+      if (guard) return guard;
+    }
+    if (hurt) {
+      const mend = kit.find((a) => a.kind === 'mend');
+      if (mend) return mend;
+    }
+    // if the player is winded, press with control rather than damage
+    if (this.me.coherence <= 2) {
+      const ctl = kit.find((a) => a.kind === 'control' || a.kind === 'disrupt');
+      if (ctl && !this.hasStatus(this.me, 'sealed')) return ctl;
+    }
+    // otherwise best expected damage against the player's aspect
+    const strikes = kit.filter((a) => a.power > 0);
+    if (strikes.length) {
+      return strikes.reduce((best, a) =>
+        a.power * effectiveness(a.aspect, this.me.def.aspect) >
+        best.power * effectiveness(best.aspect, this.me.def.aspect)
+          ? a
+          : best,
+      );
+    }
+    return this.rng.pick(kit);
+  }
+
+  private msg(t: string): void {
+    this.msgQueue.push(t);
+    this.log.push(t);
+    if (this.log.length > 40) this.log.shift();
+  }
+
+  // --- turn flow --------------------------------------------------------
+
+  private playerAct(app: App, ab: Ability): void {
+    this.turn++;
+    this.me.guard = 0;
+    this.foe.guard = 0;
+    const first = this.me.def.grip >= this.foe.def.grip;
+    const enemyAb = this.enemyChoose();
+
+    const doMe = () => this.useAbility(this.me, this.foe, ab, this.me.def.name);
+    const doFoe = () => {
+      if (this.foe.integrity > 0) this.useAbility(this.foe, this.me, enemyAb, this.foe.def.name);
+    };
+
+    if (first) {
+      doMe();
+      if (this.foe.integrity > 0) doFoe();
+    } else {
+      doFoe();
+      if (this.me.integrity > 0) doMe();
+    }
+
+    this.tickStatuses(this.me, this.me.def.name);
+    this.tickStatuses(this.foe, this.foe.def.name);
+    // a little coherence comes back every turn or the fight stalls out
+    this.me.coherence = Math.min(this.me.maxCoherence, this.me.coherence + 1);
+    this.foe.coherence = Math.min(this.foe.maxCoherence, this.foe.coherence + 1);
+
+    if (this.foe.integrity <= 0) {
+      this.msg(`${this.foe.def.name} loses cohesion and comes apart.`);
+      this.finish(app, 'win');
+    } else if (this.me.integrity <= 0) {
+      this.msg(`${this.me.def.name} collapses. The loom cuts out.`);
+      this.finish(app, 'lose');
+    }
+    this.phase = 'message';
+  }
+
+  private finish(app: App, r: 'win' | 'lose' | 'flee'): void {
+    if (this.result) return;
+    this.result = r;
+    audio.sfx(r === 'win' ? 'battle.win' : r === 'lose' ? 'battle.lose' : 'ui.back');
+    audio.sfx('revenant.collapse');
+    const s = app.state;
+    if (r === 'win') this.enc.onWin?.(s);
+    if (r === 'lose') this.enc.onLose?.(s);
+    if (this.foe.known) this.enc.onScan?.(s);
+    bus.emit('combat:end', { encounterId: this.enc.id, result: r });
+  }
+
+  // --- update -----------------------------------------------------------
+
+  update(app: App, dt: number): void {
+    if (this.shakeFx > 0) {
+      app.renderer.shake(this.shakeFx, 0.18);
+      this.shakeFx = 0;
+    }
+    if (this.flashFx > 0) this.flashFx = Math.max(0, this.flashFx - dt * 3);
+    this.timer += dt * this.speed();
+
+    if (this.phase === 'intro' || this.phase === 'message') {
+      if (this.msgQueue.length && (app.input.pressed('confirm') || this.timer > 1.6)) {
+        this.msgQueue.shift();
+        this.timer = 0;
+        audio.sfx('ui.move', { gain: 0.3 });
+      }
+      if (!this.msgQueue.length) {
+        if (this.result) {
+          this.phase = 'done';
+          this.timer = 0;
+        } else {
+          this.phase = 'menu';
+        }
+      }
+      return;
+    }
+
+    if (this.phase === 'done') {
+      if (this.timer > 0.7 && app.input.pressed('confirm')) {
+        audio.sfx('ui.select');
+        app.pop();
+        const def = this.back as unknown as { id: string };
+        void def;
+        audio.setMusic('explore', { fade: 2 });
+      }
+      return;
+    }
+
+    if (this.phase === 'menu') {
+      const items = 3;
+      if (app.input.repeated('down')) {
+        this.menuIndex = (this.menuIndex + 1) % items;
+        audio.sfx('ui.move');
+      }
+      if (app.input.repeated('up')) {
+        this.menuIndex = (this.menuIndex + items - 1) % items;
+        audio.sfx('ui.move');
+      }
+      if (app.input.pressed('confirm')) {
+        audio.sfx('ui.select');
+        if (this.menuIndex === 0) {
+          this.phase = 'abilities';
+          this.abilityIndex = 0;
+        } else if (this.menuIndex === 1) {
+          // READ is always available and always free — investigation must never
+          // be gated behind a resource the player can run out of.
+          this.foe.known = true;
+          audio.sfx('scan');
+          this.msg(`READ \x7f ${this.foe.def.name}: ${this.foe.def.reading}`);
+          this.msg(`SERIAL ${this.foe.def.serial} \x7f CAST OF ${this.foe.def.castOf}`);
+          bus.emit('combat:scanned', { revenantId: this.foe.def.id });
+          this.enc.onScan?.(app.state);
+          if (this.enc.id === 'registry-sentinel') {
+            app.toast('Evidence: CAST SERIAL', '\x09', PAL.amber3);
+          }
+          this.phase = 'message';
+        } else {
+          if (!this.enc.canFlee || this.hasStatus(this.me, 'anchored')) {
+            this.msg(
+              this.hasStatus(this.me, 'anchored')
+                ? 'Anchored. The projection will not let go.'
+                : 'There is nowhere to withdraw to.',
+            );
+            this.phase = 'message';
+          } else {
+            this.msg('You cut the projection and step back.');
+            this.finish(app, 'flee');
+            this.phase = 'message';
+          }
+        }
+      }
+      return;
+    }
+
+    if (this.phase === 'abilities') {
+      const kit = this.me.def.abilities;
+      if (app.input.repeated('down')) {
+        this.abilityIndex = (this.abilityIndex + 1) % kit.length;
+        audio.sfx('ui.move');
+      }
+      if (app.input.repeated('up')) {
+        this.abilityIndex = (this.abilityIndex + kit.length - 1) % kit.length;
+        audio.sfx('ui.move');
+      }
+      if (app.input.pressed('cancel')) {
+        audio.sfx('ui.back');
+        this.phase = 'menu';
+      }
+      if (app.input.pressed('confirm')) {
+        const ab = kit[this.abilityIndex];
+        const sealed = this.hasStatus(this.me, 'sealed') && ab.kind !== 'strike';
+        if (ab.cost > this.me.coherence || sealed) {
+          audio.sfx('ui.error');
+          this.msg(sealed ? 'Sealed. That part of the cast will not answer.' : 'Not enough coherence.');
+          this.phase = 'message';
+          return;
+        }
+        audio.sfx('loom.project');
+        this.playerAct(app, ab);
+      }
+    }
+  }
+
+  // --- draw -------------------------------------------------------------
+
+  draw(_app: App, p: Painter): void {
+    p.rect(0, 0, VW, VH, PAL.void0);
+    // projection field: two shallow arenas, not a photo backdrop
+    for (let i = 0; i < VH; i += 4) {
+      p.rect(0, i, VW, 1, mix(PAL.void0, PAL.void2, 0.6));
+    }
+    p.rect(0, 96, VW, 1, PAL.iron1);
+    if (this.flashFx > 0) p.scrim(PAL.bone3, this.flashFx * 0.4);
+
+    this.drawCombatant(p, this.foe, 236, 30, false);
+    this.drawCombatant(p, this.me, 18, 96, true);
+
+    // message / menu region
+    const boxY = VH - 62;
+    p.panel(6, boxY, VW - 12, 56, 'dialogue');
+
+    if (this.msgQueue.length) {
+      p.textBlock(this.msgQueue[0], 14, boxY + 8, VW - 28, { color: PAL.bone2, maxLines: 4 });
+      const blink = Math.sin(this.timer * 6) > 0;
+      if (blink) p.text('\x02', VW - 18, boxY + 44, { color: PAL.halo3 });
+      return;
+    }
+
+    if (this.phase === 'done') {
+      const t =
+        this.result === 'win' ? 'THE PROJECTION FAILS' :
+        this.result === 'lose' ? 'YOUR LOOM CUTS OUT' : 'YOU STEP BACK';
+      p.text(t, VW / 2, boxY + 12, { color: PAL.halo3, align: 'center' });
+      if (this.result === 'lose' && !this.enc.lossIsFatal) {
+        p.textBlock(
+          'You come round on the deck a minute later with a headache and your tile intact. ' +
+            'Nothing here kills you. It only decides things.',
+          14, boxY + 26, VW - 28, { color: PAL.bone0, maxLines: 2 },
+        );
+      } else if (this.foe.known) {
+        p.text(`Cast serial recorded: ${this.foe.def.serial}`, 14, boxY + 28, { color: PAL.amber3 });
+      } else {
+        p.text('You never read it. Whatever it was, it is gone now.', 14, boxY + 28, {
+          color: PAL.iron5,
+        });
+      }
+      p.text('Z', VW - 18, boxY + 44, { color: PAL.halo3 });
+      return;
+    }
+
+    if (this.phase === 'menu') {
+      const items = ['PROJECT', 'READ', 'WITHDRAW'];
+      const hints = [
+        'Use an ability.',
+        'Read the cast \x7f free, always available, and how you learn what it is.',
+        this.enc.canFlee ? 'Cut the projection and leave.' : 'Not possible here.',
+      ];
+      items.forEach((it, i) => {
+        const y = boxY + 8 + i * 12;
+        const sel = i === this.menuIndex;
+        if (sel) p.rect(10, y - 2, 96, 11, mix(PAL.void2, PAL.halo1, 0.4));
+        p.text(sel ? '\x05' : ' ', 13, y, { color: PAL.halo3 });
+        p.text(it, 22, y, { color: sel ? PAL.bone3 : PAL.bone0 });
+      });
+      p.textBlock(hints[this.menuIndex], 114, boxY + 8, VW - 128, {
+        color: PAL.iron5,
+        maxLines: 4,
+      });
+      return;
+    }
+
+    // ability list
+    const kit = this.me.def.abilities;
+    kit.forEach((ab, i) => {
+      const y = boxY + 6 + i * 11;
+      const sel = i === this.abilityIndex;
+      const afford = this.me.coherence >= ab.cost;
+      const sealed = this.hasStatus(this.me, 'sealed') && ab.kind !== 'strike';
+      const col = !afford || sealed ? PAL.iron3 : sel ? PAL.bone3 : PAL.bone0;
+      if (sel) p.rect(10, y - 2, 150, 10, mix(PAL.void2, PAL.halo1, 0.4));
+      p.text(ab.name, 22, y, { color: col });
+      p.text(ASPECT_MARK[ab.aspect], 118, y, {
+        color: !afford || sealed ? PAL.iron3 : ASPECT_COLOR[ab.aspect],
+      });
+      p.text(`${ab.cost}\x08`, 146, y, { color: afford ? PAL.halo2 : PAL.ember2 });
+    });
+    const ab = kit[this.abilityIndex];
+    p.textBlock(ab.desc, 168, boxY + 8, VW - 182, { color: PAL.bone1, maxLines: 3 });
+    if (settings.get().combatAssist && this.foe.known) {
+      const eff = effectiveness(ab.aspect, this.foe.def.aspect);
+      const label = eff > 1 ? 'BITES DEEP' : eff < 1 ? 'BARELY TAKES' : 'EVEN';
+      p.text(label, 168, boxY + 42, {
+        color: eff > 1 ? PAL.halo3 : eff < 1 ? PAL.ember2 : PAL.iron5,
+      });
+    } else if (settings.get().combatAssist) {
+      p.text('READ IT TO SEE EFFECT', 168, boxY + 42, { color: PAL.iron4 });
+    }
+    p.text('X back', VW - 44, boxY + 44, { color: PAL.iron4 });
+  }
+
+  private drawCombatant(p: Painter, c: Combatant, x: number, y: number, mine: boolean): void {
+    const w = 130;
+    p.panel(x, y, w, 40, 'terminal');
+    const name = c.known || mine ? c.def.name : '\x7f\x7f\x7f UNREAD \x7f\x7f\x7f';
+    p.text(name, x + 6, y + 5, { color: mine ? PAL.halo3 : PAL.bone3 });
+    if (c.known || mine) {
+      p.text(ASPECT_MARK[c.def.aspect], x + w - 6, y + 5, {
+        color: ASPECT_COLOR[c.def.aspect],
+        align: 'right',
+      });
+    }
+    p.text('INT', x + 6, y + 16, { color: PAL.iron5 });
+    p.meter(x + 26, y + 17, 92, 4, c.integrity / c.maxIntegrity, { ghost: c.ghost });
+    p.text('COH', x + 6, y + 25, { color: PAL.iron5 });
+    for (let i = 0; i < c.maxCoherence; i++) {
+      const on = i < c.coherence;
+      p.rect(x + 26 + i * 6, y + 26, 4, 4, on ? PAL.halo3 : PAL.iron1);
+    }
+    // statuses as words, never colour alone
+    let sx = x + 6;
+    for (const [s] of c.statuses) {
+      const label = STATUS_INFO[s].name.slice(0, 5);
+      p.text(label, sx, y + 33, { color: PAL.ember3 });
+      sx += label.length * 6 + 4;
+    }
+    if (!c.known && !mine) {
+      p.text('READ to identify', x + 6, y + 33, { color: PAL.iron4 });
+    }
+  }
+}

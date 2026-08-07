@@ -42,6 +42,7 @@ export type PanelStyle = 'terminal' | 'plate' | 'dialogue' | 'inset' | 'ghost';
 
 export interface TextOpts {
   color?: string;
+  // NOTE: PAL is `as const`, so callers passing PAL values need widening.
   /** Draws a 1px offset copy underneath so text stays legible over art. */
   shadow?: string | null;
   /** Integer scale for headings. Keeps pixels square. */
