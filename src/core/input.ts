@@ -63,6 +63,14 @@ export class Input {
   private codeToAction = new Map<string, Action>();
   private held = new Set<Action>();
   private prevHeld = new Set<Action>();
+  /**
+   * Presses are latched on the DOM event and only cleared at the end of the
+   * frame that observed them. Deriving `pressed` purely from held-vs-previous
+   * silently eats any tap that begins and ends inside a single frame — which is
+   * every fast tap on a stuttering frame, and every synthetic key event.
+   */
+  private latchedPress = new Set<Action>();
+  private latchedRelease = new Set<Action>();
   private repeatTimer = new Map<Action, number>();
   private repeatFired = new Set<Action>();
   private padIndex: number | null = null;
@@ -89,6 +97,7 @@ export class Input {
       this.gestured = true;
       if (!this.held.has(a)) {
         this.held.add(a);
+        this.latchedPress.add(a);
         this.repeatTimer.set(a, REPEAT_DELAY);
       }
     }
@@ -99,6 +108,7 @@ export class Input {
     if (a) {
       e.preventDefault();
       this.held.delete(a);
+      this.latchedRelease.add(a);
       this.repeatTimer.delete(a);
     }
   };
@@ -106,6 +116,7 @@ export class Input {
   /** Losing focus must release everything, or the player walks into a wall. */
   private onBlur = () => {
     this.held.clear();
+    this.latchedPress.clear();
     this.repeatTimer.clear();
   };
 
@@ -204,6 +215,7 @@ export class Input {
       this.gestured = true;
       if (!this.held.has(a)) {
         this.held.add(a);
+        this.latchedPress.add(a);
         this.repeatTimer.set(a, REPEAT_DELAY);
       }
     }
@@ -234,19 +246,21 @@ export class Input {
   /** Call once per frame AFTER game update. */
   endFrame(): void {
     this.prevHeld = new Set(this.held);
+    this.latchedPress.clear();
+    this.latchedRelease.clear();
   }
 
   down(a: Action): boolean {
     return this.held.has(a);
   }
 
-  /** True on the frame the action went down. */
+  /** True on the frame the action went down — including taps shorter than a frame. */
   pressed(a: Action): boolean {
-    return this.held.has(a) && !this.prevHeld.has(a);
+    return this.latchedPress.has(a);
   }
 
   released(a: Action): boolean {
-    return !this.held.has(a) && this.prevHeld.has(a);
+    return this.latchedRelease.has(a);
   }
 
   /** Edge OR auto-repeat — what menus should use. */
@@ -270,6 +284,8 @@ export class Input {
   clearHeld(): void {
     this.held.clear();
     this.prevHeld.clear();
+    this.latchedPress.clear();
+    this.latchedRelease.clear();
     this.repeatTimer.clear();
   }
 

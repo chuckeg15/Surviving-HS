@@ -91,6 +91,25 @@ async function boot(): Promise<void> {
       app.fadeTo(0);
     },
     state: () => app.state,
+    /** Snapshot the playtest can assert against without reaching into scenes. */
+    probe: () => ({
+      scene: app.scene?.id ?? '-',
+      room: app.state.room,
+      name: app.state.profile.name,
+      background: app.state.profile.background,
+      clues: app.state.foundClues().length,
+      deductions: [...app.state.deductions],
+      tesserae: app.state.tesserae.length,
+      clock: app.state.clock(),
+      relations: Object.fromEntries(
+        [...app.state.relations.keys()].map((k) => [k, app.state.relationLevel(k)]),
+      ),
+      flags: Object.fromEntries(app.state.flags),
+    }),
+    async validate() {
+      const { validateContent } = await import('@/dev/validate');
+      return validateContent();
+    },
     audio,
   };
   (window as unknown as Record<string, unknown>).__candlewake = dbg;

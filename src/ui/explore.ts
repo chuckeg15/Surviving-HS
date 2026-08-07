@@ -63,6 +63,12 @@ export class ExploreScene implements Scene {
   // presentation
   private bannerTimer = 0;
   private hintTarget: { x: number; y: number; label: string } | null = null;
+  /**
+   * A door's arrival spawn is the door tile itself, so without this the player
+   * would land on a door and be sent straight back where they came from. The
+   * tile is armed again the moment they step off it.
+   */
+  private doorCooldown: { x: number; y: number } | null = null;
 
   enter(app: App): void {
     this.loadRoom(app, app.state.room, null);
@@ -105,6 +111,7 @@ export class ExploreScene implements Scene {
     app.sheetRegion(PLAYER_KEY, s.profile.look);
 
     s.room = roomId;
+    this.doorCooldown = { x: Math.floor(px / TILE), y: Math.floor((py - 1) / TILE) };
     this.spawnNpcs(app);
     this.bannerTimer = 3.0;
     bus.emit('room:enter', { room: roomId });
@@ -186,7 +193,13 @@ export class ExploreScene implements Scene {
     }
 
     // doors trigger on standing over them
-    const d = doorAt(this.room, this.player.tileX, this.player.tileY);
+    if (
+      this.doorCooldown &&
+      (this.doorCooldown.x !== this.player.tileX || this.doorCooldown.y !== this.player.tileY)
+    ) {
+      this.doorCooldown = null;
+    }
+    const d = this.doorCooldown ? undefined : doorAt(this.room, this.player.tileX, this.player.tileY);
     if (d) {
       if (d.locked && !clearancesOf(app.state).includes(d.locked)) {
         if (!app.state.has(`refused:${d.to}`)) {
@@ -227,13 +240,33 @@ export class ExploreScene implements Scene {
         return { x: n.actor.x, y: n.actor.y, label: NPCS[n.id].name };
       }
     }
-    const it = interactAt(this.room, f.x, f.y);
+    const it = interactAt(this.room, f.x, f.y) ?? this.nearestInteractable();
     if (it) {
       const def = INTERACTABLES[it.id];
-      return { x: f.x * TILE + 8, y: f.y * TILE + 12, label: def?.label ?? 'Examine' };
+      return { x: it.x * TILE + 8, y: it.y * TILE + 12, label: def?.label ?? 'Examine' };
     }
     void app;
     return null;
+  }
+
+  /**
+   * Falls back to the closest interactable within reach when the player is
+   * beside a thing but not squarely facing its tile. Demanding exact facing
+   * alignment is the difference between "investigating a room" and "fighting
+   * the controls", and an investigation game asks the player to do this
+   * hundreds of times.
+   */
+  private nearestInteractable(): { id: string; x: number; y: number } | undefined {
+    let best: { id: string; x: number; y: number } | undefined;
+    let bestD = 22;
+    for (const it of this.room.interactables) {
+      const d = Math.hypot(it.x * TILE + 8 - this.player.x, it.y * TILE + 8 - (this.player.y - 8));
+      if (d < bestD) {
+        bestD = d;
+        best = it;
+      }
+    }
+    return best;
   }
 
   private interact(app: App): void {
@@ -248,7 +281,7 @@ export class ExploreScene implements Scene {
         return;
       }
     }
-    const it = interactAt(this.room, f.x, f.y);
+    const it = interactAt(this.room, f.x, f.y) ?? this.nearestInteractable();
     if (!it) return;
     const def = INTERACTABLES[it.id];
     if (!def) return;

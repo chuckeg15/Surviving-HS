@@ -43,7 +43,7 @@ const cBunk: RoomDef = {
     '#.........P.......N....#',
     '#......................#',
     '#..........$...........#',
-    '##########D#############',
+    '##########DD############',
   ],
   marks: {
     '1': {
@@ -133,7 +133,7 @@ const cCommons: RoomDef = {
     '#..TTt.......TTt......P....#',
     '#..cvc.......cvc...........#',
     '#.........@................#',
-    '#############D##############',
+    '#############DD#############',
   ],
   marks: {
     '1': { prop: 'prop.console.a', solid: true, interact: 'trim-readout' },
@@ -170,8 +170,8 @@ const cMuster: RoomDef = {
     '#..X.x................Y..#',
     '#..Z..................O..#',
     '#........................#',
-    '#..........@........2....#',
-    '#############D############',
+    '#..........@.......32....#',
+    '#############DD###########',
   ],
   marks: {
     U: { prop: 'prop.muster', solid: true, interact: 'muster-terminal' },
@@ -181,6 +181,7 @@ const cMuster: RoomDef = {
       interact: 'duct-hatch',
       light: { r: 20, color: PAL.ember2, i: 0.25, flicker: 0.3 },
     },
+    '3': { spawn: 'from-duct' },
     '@': { spawn: 'default' },
     D: { door: { to: 'c-corridor', spawn: 'from-muster' }, spawn: 'from-corridor' },
     '&': { npc: 'stray' },
@@ -213,7 +214,7 @@ const cWatch: RoomDef = {
     '#..................#',
     '#.2...........3....#',
     '#........@.........#',
-    '#########D##########',
+    '#########DD#########',
   ],
   marks: {
     '1': { prop: 'prop.terminal', solid: true, interact: 'watch-terminal' },
@@ -251,7 +252,7 @@ const spineDuct: RoomDef = {
     '#..............................#',
     '#..g......................g....#',
     '#....@....................4....#',
-    '#D##############################',
+    '#DD#############################',
   ],
   marks: {
     '1': { prop: 'prop.debris', interact: 'duct-scuff' },
