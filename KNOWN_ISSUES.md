@@ -66,12 +66,33 @@ real hardware this should be trivially 60 fps — it is one draw call and roughl
 2,000 triangles — but that has not been measured on a GPU and should not be
 claimed until it is.
 
+## Character sprites
+
+Rebuilt against a reference bar of top-tier handheld-RPG overworld sprites.
+What changed: chibi proportions (head ~40% of figure height, since a
+naturalistic head at a 16px cell is three pixels across and cannot hold an eye,
+a hairline and a silhouette at once), a hard black rim including diagonals,
+three-tone shading per material, hairlines with temples and partings instead of
+a flat cap, full hair coverage on the back of the head, arms given their own
+value so the upper body is not one slab, and a walk cycle with a real stride
+(trailing leg a pixel shorter, both shifting outward).
+
+Still below the bar:
+- The defeated pose reads as a slab rather than a fallen person.
+- The hurt pose is a 2px shift; there is no genuine flinch drawing.
+- The `act` (interacting) pose is subtle at 1x.
+- Side-view figures are narrow and carry less identity than front-facing ones.
+- Portraits were not reworked and are now the weakest character art in the game
+  relative to the world sprites.
+
 ## Visual issues still open
 
 Found by inspecting captured frames:
 
 - Deck-plate seams were softened but the floor still reads as a slightly
   regular grid at 5x scale in wide rooms.
+- Commons decking was over-corrected into flat speckle and then partially
+  restored; it still carries less structure than the other floor families.
 - `prop.table` reads as a flat grey slab with weak separation from the deck.
 - Doors in a wall row read as small panels rather than obviously as exits; the
   corridor's four doors are only legible because of the signage beside them.

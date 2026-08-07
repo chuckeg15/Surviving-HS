@@ -425,8 +425,9 @@ function drawHazard(s: Surface): void {
  * produces a proper parquet with no change in average value.
  */
 function commonsGround(s: Surface, swapPhase: boolean): void {
+  // A full-tile speckle was flattening this into noise. The decking needs its
+  // plank structure to read; the grime is a light pass on top, not the base.
   rect(s, 0, 0, 16, 16, PAL.iron1);
-  dither(s, 0, 0, 16, 16, PAL.rust1, 1);
   for (let by = 0; by < 16; by += 8) {
     for (let bx = 0; bx < 16; bx += 8) {
       const horiz = ((bx === 0 ? 0 : 1) ^ (by === 0 ? 0 : 1)) === (swapPhase ? 1 : 0);
@@ -442,8 +443,9 @@ function commonsGround(s: Surface, swapPhase: boolean): void {
   // Seams only, and softly. An earlier version drew a hard tile border AND a
   // mid-tile cross, which stacked into two visible grids the moment the floor
   // covered more than a few tiles.
-  dither(s, 0, 0, 16, 1, PAL.rust1, 2);
-  dither(s, 0, 1, 1, 15, PAL.rust1, 2);
+  dither(s, 0, 0, 16, 1, PAL.rust1, 3);
+  dither(s, 0, 1, 1, 15, PAL.rust1, 3);
+  dither(s, 1, 1, 15, 1, PAL.iron2, 2);
 }
 
 function drawCommonsA(s: Surface): void {
