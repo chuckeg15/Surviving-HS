@@ -465,19 +465,27 @@ export class CharCreateScene implements Scene {
       }
     });
 
-    // background detail — the honest statement of what the choice does
-    p.panel(104, 142, VW - 112, 56, 'inset');
-    p.textBlock(b.blurb, 109, 146, VW - 122, { color: PAL.bone0, maxLines: 3 });
-    let ey = 172;
+    // Background detail — the honest statement of what the choice does.
+    // Blurb and effects share one well, so the blurb is clamped to two lines
+    // and the effects are laid out from a measured offset rather than a
+    // guessed one; an earlier version overlapped all three of these.
+    const wellY = 134;
+    const wellH = VH - wellY - 16;
+    p.panel(104, wellY, VW - 112, wellH, 'inset');
+    const blurbLines = Math.min(2, p.measureBlock(b.blurb, VW - 122));
+    p.textBlock(b.blurb, 109, wellY + 4, VW - 122, { color: PAL.bone0, maxLines: 2 });
+    let ey = wellY + 6 + blurbLines * 9;
     for (const e of b.effects) {
+      if (ey + 8 > wellY + wellH) break;
       p.text('\x09', 109, ey, { color: PAL.amber3 });
-      p.textBlock(e, 118, ey, VW - 132, { color: PAL.bone2, maxLines: 1 });
+      p.textBlock(e, 118, ey, VW - 134, { color: PAL.bone2, maxLines: 1 });
       ey += 9;
     }
 
+    // SIGN ON sits under the preview column, clear of the detail well.
     const confirmSel = this.cursor.index === 9;
-    p.panel(VW / 2 - 40, VH - 34, 80, 14, confirmSel ? 'terminal' : 'plate');
-    p.text('SIGN ON', VW / 2, VH - 30, {
+    p.panel(8, VH - 28, 92, 16, confirmSel ? 'terminal' : 'plate');
+    p.text('SIGN ON', 54, VH - 23, {
       color: confirmSel ? PAL.halo3 : PAL.iron5,
       align: 'center',
     });

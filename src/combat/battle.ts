@@ -751,8 +751,13 @@ export class BattleScene implements Scene {
     p.rect(0, 96, VW, 1, PAL.iron1);
     if (this.flashFx > 0) p.scrim(PAL.bone3, this.flashFx * 0.4);
 
-    this.drawCombatant(p, this.foe, 236, 30, false);
-    this.drawCombatant(p, this.me, 18, 96, true);
+    // Diagonal layout: each revenant sits opposite its own readout, so the two
+    // bodies never collide with each other, with a panel, or with the message
+    // box that opens along the bottom.
+    this.drawRevenant(p, this.foe, 150, 40, false);
+    this.drawRevenant(p, this.me, 284, 92, true);
+    this.drawCombatant(p, this.foe, 232, 12, false);
+    this.drawCombatant(p, this.me, 14, 92, true);
 
     // message / menu region
     const boxY = VH - 62;
@@ -837,9 +842,92 @@ export class BattleScene implements Scene {
     p.text('X back', VW - 44, boxY + 44, { color: PAL.iron4 });
   }
 
+  /**
+   * The projected body. Drawn rather than sprited because a revenant is a field
+   * effect, not a creature — it should read as something being *held in shape*,
+   * which is why the silhouette is open, the interior is stippled, and an
+   * unread cast is rendered as unresolved static instead of a person.
+   */
+  private drawRevenant(p: Painter, c: Combatant, x: number, y: number, mine: boolean): void {
+    const alive = c.integrity > 0;
+    const known = c.known || mine;
+    const col = known ? ASPECT_COLOR[c.def.aspect] : PAL.iron4;
+    const dim = mix(col, PAL.void0, 0.55);
+    const t = this.timer + (mine ? 0 : 1.7);
+    // coherence drives how steady the projection looks — a guttering cast
+    // visibly loses its grip before the health bar says anything is wrong
+    const grip = c.coherence / c.maxCoherence;
+    const jitter = alive ? Math.round(Math.sin(t * 9) * (1 - grip) * 2) : 0;
+    const bob = Math.round(Math.sin(t * 2.2) * 1);
+    const ox = x + jitter;
+    const oy = y + bob;
+    const h = 46;
+    const w = 26;
+
+    if (!alive) {
+      // collapse: a flat seam where the body was
+      p.rect(ox - w / 2, oy + h - 4, w, 2, dim);
+      p.rect(ox - w / 2 + 4, oy + h - 7, w - 8, 1, dim);
+      return;
+    }
+
+    // ground seam
+    p.alpha(0.5, () => p.rect(ox - w / 2, oy + h - 2, w, 1, col));
+
+    // core column + limbs, open silhouette
+    const cx = ox;
+    p.rect(cx - 4, oy + 12, 8, 20, dim); // torso fill
+    p.rect(cx - 4, oy + 12, 8, 1, col);
+    p.rect(cx - 4, oy + 31, 8, 1, col);
+    p.rect(cx - 5, oy + 12, 1, 20, col); // sides
+    p.rect(cx + 4, oy + 12, 1, 20, col);
+    // head: a diamond, not a face — nobody is home
+    p.rect(cx - 2, oy + 4, 4, 6, dim);
+    p.rect(cx - 3, oy + 5, 1, 4, col);
+    p.rect(cx + 2, oy + 5, 1, 4, col);
+    p.rect(cx - 2, oy + 3, 4, 1, col);
+    p.rect(cx - 2, oy + 10, 4, 1, col);
+    // arms
+    p.rect(cx - 9, oy + 14, 1, 12, col);
+    p.rect(cx + 8, oy + 14, 1, 12, col);
+    p.rect(cx - 9, oy + 13, 5, 1, col);
+    p.rect(cx + 4, oy + 13, 5, 1, col);
+    // legs
+    p.rect(cx - 4, oy + 32, 1, 12, col);
+    p.rect(cx + 3, oy + 32, 1, 12, col);
+    p.rect(cx - 5, oy + 43, 3, 1, col);
+    p.rect(cx + 2, oy + 43, 3, 1, col);
+
+    // interior stipple: scan bands that drift, so it never looks like a decal
+    p.alpha(0.5, () => {
+      for (let i = 0; i < 20; i += 3) {
+        const yy = oy + 12 + ((i + Math.floor(t * 10)) % 20);
+        p.rect(cx - 4, yy, 8, 1, col);
+      }
+    });
+
+    if (!known) {
+      // unresolved: static across the whole body
+      p.alpha(0.65, () => {
+        for (let i = 0; i < 26; i++) {
+          const rx = cx - 9 + ((i * 7 + Math.floor(t * 23)) % 19);
+          const ry = oy + 3 + ((i * 13 + Math.floor(t * 31)) % 41);
+          p.rect(rx, ry, 1, 1, PAL.bone1);
+        }
+      });
+    }
+
+    // status marks float beside the body
+    let sy = oy + 2;
+    for (const [s] of c.statuses) {
+      p.text(STATUS_INFO[s].name.slice(0, 3), cx + 12, sy, { color: PAL.ember3 });
+      sy += 8;
+    }
+  }
+
   private drawCombatant(p: Painter, c: Combatant, x: number, y: number, mine: boolean): void {
     const w = 130;
-    p.panel(x, y, w, 40, 'terminal');
+    p.panel(x, y, w, 44, 'terminal');
     const name = c.known || mine ? c.def.name : '\x7f\x7f\x7f UNREAD \x7f\x7f\x7f';
     p.text(name, x + 6, y + 5, { color: mine ? PAL.halo3 : PAL.bone3 });
     if (c.known || mine) {
@@ -859,11 +947,11 @@ export class BattleScene implements Scene {
     let sx = x + 6;
     for (const [s] of c.statuses) {
       const label = STATUS_INFO[s].name.slice(0, 5);
-      p.text(label, sx, y + 33, { color: PAL.ember3 });
+      p.text(label, sx, y + 34, { color: PAL.ember3 });
       sx += label.length * 6 + 4;
     }
-    if (!c.known && !mine) {
-      p.text('READ to identify', x + 6, y + 33, { color: PAL.iron4 });
+    if (!c.known && !mine && c.statuses.size === 0) {
+      p.text('READ to identify', x + 6, y + 34, { color: PAL.iron4 });
     }
   }
 }

@@ -78,6 +78,11 @@ Found by inspecting captured frames:
 - The corridor is 31 tiles wide with a sparse middle section.
 - Wall caps and faces are marked `over`, so a character can walk behind the top
   of a wall — this is correct, but it has not been tested against every prop.
+- Combat has no background art: the two revenants stand on an empty field of
+  scanlines. The bodies themselves are drawn (open silhouettes that jitter as
+  coherence drops, with static over an unread cast), but the space they fight in
+  is blank.
+- Combat has no hit animation beyond a screen shake and a brief white flash.
 
 ## Systems designed but not implemented
 
