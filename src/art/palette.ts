@@ -21,12 +21,18 @@ export const PAL = {
   void2: '#0b141a',
   void3: '#111e25',
 
-  iron0: '#18262e',
-  iron1: '#22343d',
-  iron2: '#2f454f',
-  iron3: '#3f5a65',
-  iron4: '#55747f',
-  iron5: '#7396a0',
+  // The neutral structural ramp — the most-used family in the game. Deck plate
+  // sits on iron1, wall faces on iron2, wall caps on iron3, so a room reads as
+  // a box: walls always one step lighter than the floor they enclose. These
+  // values are deliberately mid-range rather than dark; the lightmap multiplies
+  // *down* from here, so authoring the substrate dark once means every room in
+  // the game looks like a power failure.
+  iron0: '#1d2c34',
+  iron1: '#334a55',
+  iron2: '#46626e',
+  iron3: '#5c7d89',
+  iron4: '#7a9ba5',
+  iron5: '#9dbcc4',
 
   bone0: '#8fa6a6',
   bone1: '#a9bdb9',

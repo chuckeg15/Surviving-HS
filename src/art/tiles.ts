@@ -248,8 +248,10 @@ function drawRivetPlate(s: Surface): void {
 
 /** Walkway grating: 2px bearing bars over a void, cross rods every 8. */
 function grateGround(s: Surface): void {
-  rect(s, 0, 0, 16, 16, PAL.void1);
-  dither(s, 0, 0, 16, 16, PAL.void0, 2);
+  // The void under a grating is dark but not black — the player has to be able
+  // to tell a walkway from a hole in the deck.
+  rect(s, 0, 0, 16, 16, PAL.void3);
+  dither(s, 0, 0, 16, 16, PAL.void1, 2);
   for (let x = 0; x < 16; x += 4) {
     vline(s, x, 0, 16, PAL.iron2);
     vline(s, x + 1, 0, 16, PAL.iron1);
@@ -276,13 +278,15 @@ function drawGrateB(s: Surface): void {
 
 /** Spine mesh: a diamond lattice over the void. Period 4, so it always tiles. */
 function meshGround(s: Surface): void {
-  rect(s, 0, 0, 16, 16, PAL.void2);
+  // The spine is the darkest family in the game, but "darkest" still has to be
+  // walkable — the lattice itself carries enough value to navigate by.
+  rect(s, 0, 0, 16, 16, PAL.iron0);
   for (let y = 0; y < 16; y++) {
     for (let x = 0; x < 16; x++) {
       const a = (x + y) & 3;
       const b = (x - y + 16) & 3;
-      if (a === 0 || b === 0) px(s, x, y, PAL.iron1);
-      if (a === 0 && b === 0) px(s, x, y, PAL.iron2);
+      if (a === 0 || b === 0) px(s, x, y, PAL.iron2);
+      if (a === 0 && b === 0) px(s, x, y, PAL.iron3);
     }
   }
 }

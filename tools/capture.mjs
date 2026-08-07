@@ -125,7 +125,7 @@ async function main() {
     }
   } else {
     const out = path.join(SHOTS, `${name}.png`);
-    await page.screenshot({ path: out });
+    await page.screenshot({ path: out, fullPage: process.argv.includes('--full') });
     console.log('  wrote', path.relative(ROOT, out));
   }
 
@@ -150,10 +150,12 @@ async function main() {
   if (errors.length) {
     console.error('\nPAGE ERRORS:');
     for (const e of errors) console.error('  ' + e);
-    process.exitCode = 1;
   } else {
     console.log('\nno page errors');
   }
+  // npx keeps a child alive past SIGTERM often enough that waiting for a clean
+  // exit costs more than it is worth in a capture tool.
+  process.exit(errors.length ? 1 : 0);
 }
 
 main().catch((e) => {

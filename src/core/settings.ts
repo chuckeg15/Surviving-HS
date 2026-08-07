@@ -112,7 +112,7 @@ export class SettingsStore {
       // merge field-by-field: an older save missing new keys must still work
       for (const k of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
         if (parsed[k] !== undefined && typeof parsed[k] === typeof DEFAULT_SETTINGS[k]) {
-          (this.data as Record<string, unknown>)[k] = parsed[k];
+          (this.data as unknown as Record<string, unknown>)[k] = parsed[k];
         }
       }
       if (parsed.bindings && typeof parsed.bindings === 'object') {

@@ -633,7 +633,10 @@ export class MusicDirector {
     if (this.nextStepTime < now - 0.5) this.nextStepTime = now + 0.05;
     let n = 0;
     while (this.nextStepTime < now + LOOKAHEAD && n++ < MAX_STEPS_PER_TICK) {
-      for (const l of p.layers) if (l.active) l.emit(this.nextStepTime, this.step);
+      // Notes go into the layer's own gain node, not the piece bus — that gain
+      // is what setMusicIntensity() ramps, so bypassing it would make intensity
+      // layering silently do nothing.
+      for (const l of p.layers) if (l.active) l.emit(l.gain, this.nextStepTime, this.step);
       this.step++;
       this.nextStepTime += p.stepDur;
     }

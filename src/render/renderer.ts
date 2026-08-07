@@ -53,6 +53,15 @@ export interface SpriteDraw {
 
 const LIGHT_DIV = 2; // lightmap is half resolution
 
+/**
+ * The lightmap canvas can only hold 0..1, but a lit room needs to sit at 1.0
+ * (texture shown as authored) with lamps pushing *above* it. So the canvas
+ * stores brightness/LIGHT_GAIN and the shader multiplies it back out. Without
+ * this the brightest a room can ever be is "the raw texture, undimmed", which
+ * makes every scene look like a power failure.
+ */
+const LIGHT_GAIN = 1.7;
+
 const compositeVert = /* glsl */ `
 varying vec2 vUv;
 void main() {
@@ -66,6 +75,7 @@ precision mediump float;
 uniform sampler2D tScene;
 uniform sampler2D tLight;
 uniform float uSteps;
+uniform float uGain;
 uniform float uLightMix;
 uniform vec3  uFlashColor;
 uniform float uFlashAmt;
@@ -80,6 +90,7 @@ void main() {
   vec3 scene = texture2D(tScene, vUv).rgb;
   vec3 light = texture2D(tLight, vUv).rgb;
 
+  light *= uGain;
   // Banding the light is what keeps this reading as pixel art rather than as a
   // 2D game with a lighting filter bolted on.
   light = floor(light * uSteps + 0.5) / uSteps;
@@ -149,6 +160,14 @@ export class WorldRenderer {
     });
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(VW, VH, false);
+    // Colour management is switched OFF end to end. Three would otherwise
+    // decode the sRGB atlases to linear on sample and re-encode on output — but
+    // our final composite is a raw ShaderMaterial writing straight to the
+    // canvas, so the re-encode never happens and every pixel lands roughly a
+    // gamma step too dark. Pixel art is authored in gamma space and should be
+    // multiplied in gamma space: what the artist picked is what the screen gets.
+    THREE.ColorManagement.enabled = false;
+    this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
     this.renderer.sortObjects = false;
     this.renderer.autoClear = true;
     this.renderer.setClearColor(0x04070a, 1);
@@ -213,7 +232,8 @@ export class WorldRenderer {
       uniforms: {
         tScene: { value: this.rt.texture },
         tLight: { value: this.lightTex },
-        uSteps: { value: 6.0 },
+        uSteps: { value: 8.0 },
+        uGain: { value: LIGHT_GAIN },
         uLightMix: { value: 1.0 },
         uFlashColor: { value: new THREE.Color(1, 1, 1) },
         uFlashAmt: { value: 0 },
@@ -237,7 +257,11 @@ export class WorldRenderer {
     this.tileTex.minFilter = THREE.NearestFilter;
     this.tileTex.magFilter = THREE.NearestFilter;
     this.tileTex.generateMipmaps = false;
-    this.tileTex.colorSpace = THREE.SRGBColorSpace;
+    // Atlas UVs are computed from canvas coordinates (origin top-left). Three's
+    // default flipY would mirror every cell vertically and, for a partially
+    // filled atlas, point at empty space.
+    this.tileTex.flipY = false;
+    this.tileTex.colorSpace = THREE.NoColorSpace;
     this.tileMat.map = this.tileTex;
     this.tileMat.needsUpdate = true;
   }
@@ -252,7 +276,8 @@ export class WorldRenderer {
     this.spriteTex.minFilter = THREE.NearestFilter;
     this.spriteTex.magFilter = THREE.NearestFilter;
     this.spriteTex.generateMipmaps = false;
-    this.spriteTex.colorSpace = THREE.SRGBColorSpace;
+    this.spriteTex.flipY = false; // see setTileAtlas
+    this.spriteTex.colorSpace = THREE.NoColorSpace;
     this.spriteMat.map = this.spriteTex;
     this.spriteMat.needsUpdate = true;
     this.actorBatch.setTextureSize(canvas.width, canvas.height);
@@ -284,9 +309,18 @@ export class WorldRenderer {
 
   // --- lighting ---------------------------------------------------------
 
+  /**
+   * `level` is brightness where 1.0 means "show the tiles as authored".
+   * Below 1 dims the room; lamps can carry a spot above 1 up to LIGHT_GAIN.
+   */
   setAmbient(color: string, level: number): void {
     const [r, g, b] = rgb(color);
-    this.ambient = [(r / 255) * level, (g / 255) * level, (b / 255) * level];
+    // Normalise the tint to its brightest channel so the colour only shifts hue
+    // and `level` alone controls brightness. Otherwise picking a cool ambient
+    // silently darkens the room and every value decision has to be re-made.
+    const peak = Math.max(r, g, b) || 255;
+    const k = level / LIGHT_GAIN / peak;
+    this.ambient = [r * k, g * k, b * k];
   }
 
   /** Lights are submitted fresh each frame — nothing persists across frames. */
@@ -370,9 +404,10 @@ export class WorldRenderer {
       const r = l.r / LIGHT_DIV;
       if (sx + r < 0 || sy + r < 0 || sx - r > lw || sy - r > lh) continue;
       const [cr, cg, cb] = rgb(l.color);
+      const a = i / LIGHT_GAIN;
       const grad = g.createRadialGradient(sx, sy, 0, sx, sy, r);
-      grad.addColorStop(0, `rgba(${cr},${cg},${cb},${i})`);
-      grad.addColorStop(0.55, `rgba(${cr},${cg},${cb},${i * 0.45})`);
+      grad.addColorStop(0, `rgba(${cr},${cg},${cb},${a})`);
+      grad.addColorStop(0.55, `rgba(${cr},${cg},${cb},${a * 0.45})`);
       grad.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
       g.fillStyle = grad;
       g.beginPath();

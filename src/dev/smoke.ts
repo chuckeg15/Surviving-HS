@@ -13,6 +13,7 @@ import { SpriteAtlas } from '@/render/atlas';
 import { DEFAULT_LOOK, CELL_H, CELL_W, POSE, getActorSheet } from '@/art/actors';
 import { PAL } from '@/art/palette';
 import { bevel, dither, rect, speckle, surface } from '@/art/pixel';
+import { getTileAtlas } from '@/art/tiles';
 import { Rng } from '@/core/rng';
 
 // --- placeholder tile atlas (real one is src/art/tiles.ts) -----------------
@@ -48,7 +49,26 @@ function main(): void {
   const painter = new Painter(screen.uiCtx);
   const renderer = new WorldRenderer(worldCanvas);
 
-  const tiles = placeholderAtlas();
+  // Real tileset unless ?placeholder=1, so the smoke test doubles as a check
+  // that the generated art actually composes into a room.
+  const useReal = !new URLSearchParams(location.search).has('placeholder');
+  const real = getTileAtlas();
+  const tiles = useReal
+    ? { canvas: real.canvas, cols: real.cols }
+    : placeholderAtlas();
+  const cellOf = (id: string, fallback: number): number =>
+    useReal ? (real.index.get(id) ?? fallback) : fallback;
+  const FLOOR = cellOf('floor.plate.a', 0);
+  const FLOOR_B = cellOf('floor.plate.b', 0);
+  const WALL = cellOf('wall.iron.face', 1);
+  const WALL_CAP = cellOf('wall.iron.cap', 1);
+  const GRATE = cellOf('floor.grate.a', 2);
+  const CONSOLE = cellOf('prop.console.a', 3);
+  const CRATE = cellOf('prop.crate.a', 3);
+  const uv = (cell: number) => ({
+    sx: (cell % tiles.cols) * TILE,
+    sy: Math.floor(cell / tiles.cols) * TILE,
+  });
   renderer.setTileAtlas(tiles.canvas);
 
   const atlas = new SpriteAtlas(512);
@@ -74,19 +94,20 @@ function main(): void {
   const propQuads: Parameters<typeof renderer.propLayer.build>[0] = [];
   for (let y = 0; y < MH; y++) {
     for (let x = 0; x < MW; x++) {
-      const edge = x === 0 || y === 0 || x === MW - 1 || y === MH - 1;
-      const t = edge ? 1 : (x + y) % 7 === 0 ? 2 : 0;
-      floorQuads.push({
-        x: x * TILE, y: y * TILE, w: TILE, h: TILE,
-        sx: t * TILE, sy: 0, sw: TILE, sh: TILE,
-      });
+      const cell =
+        y === 0 ? WALL_CAP
+        : y === 1 || x === 0 || x === MW - 1 || y === MH - 1 ? WALL
+        : (x * 3 + y * 5) % 11 === 0 ? GRATE
+        : (x + y) % 4 === 0 ? FLOOR_B
+        : FLOOR;
+      floorQuads.push({ x: x * TILE, y: y * TILE, w: TILE, h: TILE, ...uv(cell), sw: TILE, sh: TILE });
     }
   }
-  for (const [px, py] of [[4, 3], [9, 3], [14, 3], [19, 3]] as [number, number][]) {
-    propQuads.push({
-      x: px * TILE, y: py * TILE, w: TILE, h: TILE,
-      sx: 3 * TILE, sy: 0, sw: TILE, sh: TILE,
-    });
+  for (const [px, py, cell] of [
+    [4, 2, CONSOLE], [9, 2, CONSOLE], [14, 2, CONSOLE], [19, 2, CONSOLE],
+    [6, 11, CRATE], [7, 11, CRATE], [6, 12, CRATE],
+  ] as [number, number, number][]) {
+    propQuads.push({ x: px * TILE, y: py * TILE, w: TILE, h: TILE, ...uv(cell), sw: TILE, sh: TILE });
   }
   renderer.floorLayer.build(floorQuads, tiles.canvas.width, tiles.canvas.height);
   renderer.propLayer.build(propQuads, tiles.canvas.width, tiles.canvas.height);
