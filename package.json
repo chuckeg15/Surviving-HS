@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/unit/*.test.mjs",
     "test:e2e": "node tests/e2e/run.mjs",
-    "shots": "node tools/capture.mjs"
+    "shots": "node tools/capture.mjs",
+    "test:audio": "node tools/audiocheck.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"

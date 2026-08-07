@@ -796,6 +796,16 @@ export class AudioEngine {
     });
   }
 
+  /**
+   * Test-only handle on the live graph. Nobody involved in this project can
+   * hear the game, so the only honest way to claim the audio works is to tap
+   * the master bus and measure it. Returns null when Web Audio is unavailable
+   * or the context has not been unlocked yet.
+   */
+  get debugGraph(): { ctx: AudioContext; master: GainNode } | null {
+    return this.g ? { ctx: this.g.ctx, master: this.g.master } : null;
+  }
+
   // -- graph ---------------------------------------------------------------
 
   private build(): void {

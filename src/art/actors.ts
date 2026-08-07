@@ -16,7 +16,7 @@
  */
 
 import { PAL, PaletteKey, RAMP, mix } from '@/art/palette';
-import { Surface, clearAll, dither, mirrorX, outline, px, rect, stamp, surface } from '@/art/pixel';
+import { Surface, dither, mirrorX, outline, px, rect, stamp, surface } from '@/art/pixel';
 
 export const CELL_W = 16;
 export const CELL_H = 24;
@@ -587,19 +587,70 @@ function drawCell(look: ActorLook, dir: Facing, pose: number): Surface {
   const m = metrics(look.frame);
 
   if (pose === POSE.down) {
-    // Collapsed: a person on the deck, drawn as one, not a shrunken stander.
+    /**
+     * Collapsed. Drawn as a figure sprawled across the cell — head to one
+     * side, torso, one arm flung out, legs folded — rather than a shrunken
+     * standing sprite laid flat, which is what it was and which read as a
+     * crate.
+     */
     const u = UNIFORMS[look.uniform];
-    rect(s, 2, 17, 9, 5, PAL[u.body]);
-    rect(s, 2, 17, 9, 1, PAL[u.light]);
-    rect(s, 2, 21, 9, 1, PAL[u.shade]);
-    rect(s, 3, 19, 7, 1, look.accent);
-    rect(s, 10, 15, 5, 5, skinTone(look.skin, 0));
-    rect(s, 10, 15, 5, 2, look.hairColor);
-    rect(s, 10, 14, 4, 1, mix(look.hairColor, PAL.bone3, 0.3));
-    px(s, 12, 18, skinTone(look.skin, -2));
-    rect(s, 1, 20, 2, 2, PAL[u.boot]);
+    const body = PAL[u.body];
+    const shade = PAL[u.shade];
+    const light = PAL[u.light];
+    const skin = skinTone(look.skin, 0);
+    const skinD = skinTone(look.skin, -1);
+    const hair = look.hair === 'bald' ? skin : look.hairColor;
+
+    // legs, folded and splayed toward the low side
+    rect(s, 1, 18, 4, 3, shade);
+    rect(s, 1, 18, 4, 1, body);
+    rect(s, 0, 20, 4, 2, PAL[u.boot]);
+    rect(s, 2, 15, 3, 3, mix(shade, PAL.void0, 0.2));
+    rect(s, 1, 14, 3, 2, PAL[u.boot]);
+
+    // torso
+    rect(s, 4, 15, 7, 7, body);
+    rect(s, 4, 15, 7, 1, light);
+    rect(s, 4, 21, 7, 1, mix(shade, PAL.void0, 0.25));
+    rect(s, 5, 18, 5, 1, look.accent);
+    rect(s, 4, 15, 1, 7, light);
+
+    // arm flung up and back — the read that says "went down", not "lay down"
+    rect(s, 6, 11, 2, 5, shade);
+    rect(s, 5, 11, 2, 1, skin);
+
+    // neck + head, turned away
+    rect(s, 10, 16, 2, 3, skinD);
+    rect(s, 11, 14, 5, 6, skin);
+    rect(s, 11, 14, 5, 1, skinD);
+    rect(s, 15, 15, 1, 5, skinD);
+    rect(s, 11, 13, 5, 2, hair);
+    rect(s, 11, 13, 4, 1, mix(hair, PAL.bone3, 0.3));
+    rect(s, 14, 14, 2, 4, mix(hair, PAL.void0, 0.35));
+    px(s, 12, 17, skinTone(look.skin, -2)); // closed eye
+
     outline(s, PAL.void0, true);
     dither(s, 1, SHADOW_ROW, 14, 1, PAL.void0, 3);
+    return s;
+  }
+
+  if (pose === POSE.hurt) {
+    /**
+     * A real flinch, not a 2px nudge: the legs stagger, the arms come up, and
+     * the head snaps back independently of the body. Drawing the head on its
+     * own layer and offsetting it is what produces the whiplash.
+     */
+    const dx = dir === 'left' ? 2 : dir === 'right' ? -2 : 0;
+    const dy = dir === 'up' ? -1 : 1;
+    drawLegs(s, look, m, POSE.stepB, dir);
+    drawTorso(s, look, m, POSE.act, dir);
+    const head = surface(CELL_W, CELL_H);
+    drawHead(head, look, m, dir);
+    drawHair(head, look, m, dir);
+    drawAccessory(head, look, m, dir);
+    stamp(s, head, dx, dy);
+    outline(s, PAL.void0, true);
+    drawShadow(s, m);
     return s;
   }
 
@@ -608,14 +659,6 @@ function drawCell(look: ActorLook, dir: Facing, pose: number): Surface {
   drawHead(s, look, m, dir);
   drawHair(s, look, m, dir);
   drawAccessory(s, look, m, dir);
-
-  if (pose === POSE.hurt) {
-    // recoil: the whole figure leans away and drops a pixel
-    const t = surface(CELL_W, CELL_H);
-    t.g.drawImage(s.canvas, dir === 'left' ? 2 : dir === 'right' ? -2 : 0, 1);
-    clearAll(s);
-    stamp(s, t, 0, 0);
-  }
 
   // A hard black rim, diagonals included, is what separates a character from a
   // busy deck plate. Every reference sprite worth matching has one.
