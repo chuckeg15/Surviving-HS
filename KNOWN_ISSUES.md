@@ -49,14 +49,17 @@ Specifically **not built**:
   of them are currently reachable, because the others depend on rooms or NPCs
   that do not exist yet.
 
-## Audio is unverified
+## Audio is measured, but unheard
 
-`src/core/audio.ts` and `src/core/music.ts` are complete, type-check, and are
-wired into every scene. **Nobody has heard them.** This environment has no audio
-output and no way to render the graph to a file for inspection. The synthesis
-code has been read for node leaks, click-free ramps and scheduler correctness,
-but any claim about how it *sounds* would be fabricated. Treat audio as
-"implemented, untested".
+`npm run test:audio` taps the master bus with an AnalyserNode in a real browser
+and confirms the engine emits signal: 11/11, all 41 sfx / 10 music / 9 ambience
+cues fire, `masterVolume: 0` genuinely silences output, and 400 rapid one-shots
+do not break the graph.
+
+That proves it is not a stub. It does **not** prove it sounds good — nobody has
+listened to it, and no claim about how it sounds appears anywhere in this
+project. Nothing is mixed; the per-cue levels and the four channel defaults
+were chosen on paper.
 
 ## Performance numbers are not representative
 
@@ -121,13 +124,12 @@ Found by inspecting captured frames:
 - The ship map screen (`map` action, bound to `E`) is not implemented.
 - Inventory and equipment have a data layer and no interface.
 
-## Required documents not yet written
+## Required documents
 
-`SHIP_LAYOUT.md`, `ART_DIRECTION.md`, `AUDIO_DIRECTION.md`, `ENDING_MATRIX.md`,
-`QUALITY_RUBRIC.md` and `TASKS.md` were specified as deliverables and do not
-exist. `docs/CANON.md` covers the ship layout and ending families in summary
-form; the art and audio direction currently live only as comments in
-`src/art/palette.ts` and `src/core/music.ts`.
+All eighteen required documents now exist. `ART_DIRECTION.md`,
+`AUDIO_DIRECTION.md`, `SHIP_LAYOUT.md`, `ENDING_MATRIX.md`, `QUALITY_RUBRIC.md`
+and `TASKS.md` were the last six. Each describes what was actually built and
+states inline where something is design intent rather than a shipped feature.
 
 ## Review coverage
 
