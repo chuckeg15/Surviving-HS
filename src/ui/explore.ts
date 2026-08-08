@@ -26,6 +26,7 @@ import { NPCS, npcRoom } from '@/data/npcs';
 import { INTERACTABLES, CLUES, clearancesOf } from '@/data/content';
 import { DialogueRunner, TONE_LABEL } from '@/game/dialogue';
 import { LiftScene } from '@/ui/lift';
+import { ShipMapScene } from '@/ui/shipmap';
 import { audio } from '@/core/audio';
 import { settings, TEXT_CPS } from '@/core/settings';
 import { getTileAtlas, TILE_PX } from '@/art/tiles';
@@ -91,6 +92,7 @@ export class ExploreScene implements Scene {
     app.renderer.overLayer.build(this.room.overQuads, atlas.canvas.width, atlas.canvas.height);
     app.renderer.setAmbient(def.ambient.color, def.ambient.level);
     app.renderer.setVignette(0.22);
+    app.state.visitRoom(roomId);
 
     audio.setAmbience(def.ambience, 1.2);
     if (def.music) audio.setMusic(def.music, { fade: 1.5 });
@@ -173,6 +175,10 @@ export class ExploreScene implements Scene {
     if (input.pressed('menu')) {
       audio.sfx('ui.open');
       openPause(app, this);
+      return;
+    }
+    if (input.pressed('map')) {
+      app.push(new ShipMapScene());
       return;
     }
     if (input.pressed('journal')) {

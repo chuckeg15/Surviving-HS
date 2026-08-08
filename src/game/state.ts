@@ -344,6 +344,22 @@ export class GameState {
    * because clearancesOf() already reads that shape; keeping one representation
    * avoids two sources of truth for who may open what.
    */
+  /**
+   * Rooms the player has actually stood in. The ship map shows only these:
+   * revealing the whole vessel on turn one answers the question exploring is
+   * asking.
+   */
+  visitRoom(id: string): void {
+    const seen = ((this.flag('visited') as string) ?? '').split(',').filter(Boolean);
+    if (seen.includes(id)) return;
+    seen.push(id);
+    this.setFlag('visited', seen.join(','));
+  }
+
+  visitedRooms(): string[] {
+    return ((this.flag('visited') as string) ?? '').split(',').filter(Boolean);
+  }
+
   grantClearance(c: string): void {
     const cur = ((this.flag('granted-clearances') as string) ?? '')
       .split(',')

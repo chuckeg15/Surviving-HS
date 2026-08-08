@@ -81,6 +81,17 @@ async function boot(): Promise<void> {
           app.replace(new ExploreScene());
           app.push(new BattleScene('registry-sentinel', app.scene!));
           break;
+        case 'shipmap': {
+          const { ShipMapScene } = await import('@/ui/shipmap');
+          seed('c-commons');
+          for (const r of ['c-bunk', 'c-corridor', 'c-commons', 'd-lift', 'd-triage',
+                           'd-ward', 'b-lift', 'b-vestibule']) {
+            app.state.visitRoom(r);
+          }
+          app.replace(new ExploreScene());
+          app.push(new ShipMapScene());
+          break;
+        }
         case 'dialogue': {
           // Drops straight into a conversation so portraits and the speech box
           // can be reviewed in the context they are actually seen in.
