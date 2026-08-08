@@ -49,7 +49,13 @@ export const ASPECT_COLOR: Record<Aspect, string> = {
   corrosive: PAL.moss4,
 };
 
-/** a beats b at 1.5x; b resists a at 0.66x. A short cycle stays learnable. */
+/**
+ * A short cycle stays learnable. The multipliers were 1.5x / 0.66x, which
+ * measurement showed was decisive rather than influential: three of the five
+ * starting tesserae lost the boss fight 100% of the time purely on aspect,
+ * with no play available to change it. A bad matchup should be a disadvantage,
+ * not a verdict.
+ */
 const BEATS: Record<Aspect, Aspect> = {
   kinetic: 'field',
   thermal: 'kinetic',
@@ -59,8 +65,8 @@ const BEATS: Record<Aspect, Aspect> = {
 };
 
 export function effectiveness(atk: Aspect, def: Aspect): number {
-  if (BEATS[atk] === def) return 1.5;
-  if (BEATS[def] === atk) return 0.66;
+  if (BEATS[atk] === def) return 1.4;
+  if (BEATS[def] === atk) return 0.78;
   return 1;
 }
 
@@ -75,7 +81,7 @@ export type StatusId =
 export const STATUS_INFO: Record<StatusId, { name: string; blurb: string; bad: boolean }> = {
   frayed: { name: 'FRAYED', blurb: 'Loses coherence every turn.', bad: true },
   static: { name: 'STATIC', blurb: 'Attacks may miss. Cannot scan.', bad: true },
-  anchored: { name: 'ANCHORED', blurb: 'Cannot withdraw.', bad: true },
+  anchored: { name: 'ANCHORED', blurb: 'Cannot withdraw. Strikes land soft.', bad: true },
   bleedover: { name: 'BLEEDOVER', blurb: 'Next hit taken is amplified.', bad: true },
   sealed: { name: 'SEALED', blurb: 'Support abilities locked.', bad: true },
   guttering: { name: 'GUTTERING', blurb: 'Out of coherence. Taking escalating damage.', bad: true },
@@ -117,23 +123,50 @@ export interface RevenantDef {
 const A = (a: Ability): Ability => a;
 
 const ABILITIES: Record<string, Ability> = {
+  /**
+   * The floor of the whole system. Coherence only regenerates when a turn
+   * advances, so a player holding nothing affordable could press confirm
+   * forever and never recover — a genuine soft-lock, found by the playtest
+   * after the balance pass raised strike costs. STEADY costs nothing, is never
+   * sealed, and always passes the turn.
+   */
+  'steady': A({
+    id: 'steady', name: 'STEADY', kind: 'guard', aspect: 'kinetic', cost: 0, power: 0,
+    desc: 'Holds the projection together. Recovers coherence.',
+    selfBuff: { guard: 0.25, coherence: 4 },
+  }),
   'set-brace': A({
     id: 'set-brace', name: 'SET BRACE', kind: 'guard', aspect: 'kinetic', cost: 1, power: 0,
     desc: 'Halves damage this turn and restores coherence.',
-    selfBuff: { guard: 0.5, coherence: 2 },
+    selfBuff: { guard: 0.5, coherence: 4 },
   }),
   'ratchet': A({
-    id: 'ratchet', name: 'RATCHET', kind: 'strike', aspect: 'kinetic', cost: 2, power: 12,
+    id: 'ratchet', name: 'RATCHET', kind: 'strike', aspect: 'kinetic', cost: 3, power: 12,
     desc: 'A short mechanical strike. Reliable.', sure: true,
   }),
   'shear-pin': A({
-    id: 'shear-pin', name: 'SHEAR PIN', kind: 'control', aspect: 'kinetic', cost: 3, power: 6,
+    id: 'shear-pin', name: 'SHEAR PIN', kind: 'control', aspect: 'kinetic', cost: 2, power: 6,
     desc: 'Pins the target in place. Anchored.',
     inflict: { status: 'anchored', turns: 3, chance: 1 },
   }),
   'gasket-read': A({
     id: 'gasket-read', name: 'READ WEAR', kind: 'read', aspect: 'kinetic', cost: 1, power: 0,
     desc: 'Reads the cast. Reveals aspect, serial, and origin.',
+  }),
+  // Every tessera used to be mono-aspect on offence, which made the aspect
+  // wheel destiny rather than texture: three of five starting casts could not
+  // deal unpenalised damage to the Chapter One boss under any play. Each kit
+  // now carries one off-aspect strike, which also gives the loadout an actual
+  // decision in it.
+  'solvent-line': A({
+    id: 'solvent-line', name: 'SOLVENT LINE', kind: 'strike', aspect: 'corrosive', cost: 2, power: 9,
+    desc: 'Runs sealant solvent along the seam. Slow, and it keeps working.',
+    inflict: { status: 'frayed', turns: 3, chance: 0.5 },
+  }),
+  'traction': A({
+    id: 'traction', name: 'TRACTION', kind: 'control', aspect: 'kinetic', cost: 3, power: 11,
+    desc: 'Sets the projection against itself. Anchored.',
+    inflict: { status: 'anchored', turns: 3, chance: 0.9 },
   }),
   'cauterise': A({
     id: 'cauterise', name: 'CAUTERISE', kind: 'mend', aspect: 'thermal', cost: 3, power: 0,
@@ -148,12 +181,12 @@ const ABILITIES: Record<string, Ability> = {
   'bank-heat': A({
     id: 'bank-heat', name: 'BANK HEAT', kind: 'guard', aspect: 'thermal', cost: 1, power: 0,
     desc: 'Stores the next blow as coherence instead of damage.',
-    selfBuff: { guard: 0.4, coherence: 3 },
+    selfBuff: { guard: 0.4, coherence: 5 },
   }),
   'lamplight': A({
     id: 'lamplight', name: 'LAMPLIGHT', kind: 'mend', aspect: 'field', cost: 2, power: 0,
     desc: 'Restores integrity. Cheap, steady, never enough on its own.',
-    selfBuff: { integrity: 11 },
+    selfBuff: { integrity: 14 },
   }),
   'clean-field': A({
     id: 'clean-field', name: 'CLEAN FIELD', kind: 'mend', aspect: 'field', cost: 2, power: 0,
@@ -161,7 +194,7 @@ const ABILITIES: Record<string, Ability> = {
     selfBuff: { coherence: 2 },
   }),
   'suture': A({
-    id: 'suture', name: 'SUTURE', kind: 'strike', aspect: 'field', cost: 2, power: 10,
+    id: 'suture', name: 'SUTURE', kind: 'strike', aspect: 'field', cost: 3, power: 12,
     desc: 'A field seam drawn through the target. Leaves bleedover.',
     inflict: { status: 'bleedover', turns: 2, chance: 0.75 },
   }),
@@ -180,11 +213,11 @@ const ABILITIES: Record<string, Ability> = {
     inflict: { status: 'frayed', turns: 4, chance: 0.9 },
   }),
   'truncheon': A({
-    id: 'truncheon', name: 'TRUNCHEON', kind: 'strike', aspect: 'kinetic', cost: 2, power: 14,
+    id: 'truncheon', name: 'TRUNCHEON', kind: 'strike', aspect: 'kinetic', cost: 3, power: 14,
     desc: 'Watch-issue. Blunt and correct.',
   }),
   'restrain': A({
-    id: 'restrain', name: 'RESTRAIN', kind: 'control', aspect: 'kinetic', cost: 3, power: 4,
+    id: 'restrain', name: 'RESTRAIN', kind: 'control', aspect: 'kinetic', cost: 2, power: 6,
     desc: 'Anchors the target and seals its support.',
     inflict: { status: 'anchored', turns: 2, chance: 1 },
   }),
@@ -209,7 +242,7 @@ const ABILITIES: Record<string, Ability> = {
     inflict: { status: 'sealed', turns: 3, chance: 0.9 },
   }),
   'writ': A({
-    id: 'writ', name: 'WRIT OF DISTRAINT', kind: 'strike', aspect: 'field', cost: 3, power: 17,
+    id: 'writ', name: 'WRIT OF DISTRAINT', kind: 'strike', aspect: 'field', cost: 4, power: 17,
     desc: 'Administrative force, applied bodily.',
   }),
   'file-away': A({
@@ -235,35 +268,46 @@ const ABILITIES: Record<string, Ability> = {
 export const TESSERAE: Record<string, RevenantDef> = {
   'grey-liner': {
     id: 'grey-liner', name: 'GREY LINER', castOf: 'Ostrow Kell, spinehand, d. 2233',
-    serial: 'LT9-0447', aspect: 'kinetic', integrity: 62, coherence: 10, grip: 6,
-    abilities: [ABILITIES.ratchet, ABILITIES['set-brace'], ABILITIES['shear-pin'], ABILITIES['gasket-read']],
+    serial: 'LT9-0447', aspect: 'kinetic', integrity: 96, coherence: 10, grip: 6,
+    abilities: [ABILITIES.ratchet, ABILITIES['set-brace'], ABILITIES['solvent-line'], ABILITIES['gasket-read']],
     reading: 'A spinehand who died in the ducts and still moves like the ducts are narrow.',
   },
   lampwright: {
     id: 'lampwright', name: 'LAMPWRIGHT', castOf: 'Sera Ondt, medtech, d. 2230',
-    serial: 'LT9-0219', aspect: 'field', integrity: 55, coherence: 12, grip: 7,
-    abilities: [ABILITIES.suture, ABILITIES.lamplight, ABILITIES['clean-field'], ABILITIES['gasket-read']],
+    serial: 'LT9-0219', aspect: 'field', integrity: 85, coherence: 12, grip: 7,
+    abilities: [ABILITIES.suture, ABILITIES.lamplight, ABILITIES['traction'], ABILITIES['gasket-read']],
     reading: 'A medtech. Keeps trying to stabilise things, including its opponent.',
   },
   tallyman: {
     id: 'tallyman', name: 'TALLYMAN', castOf: 'Ferris Loom, registry clerk, d. 2228',
-    serial: 'LT9-0102', aspect: 'cognitive', integrity: 52, coherence: 14, grip: 8,
-    abilities: [ABILITIES.audit, ABILITIES['strike-record'], ABILITIES.tally, ABILITIES['set-brace']],
+    serial: 'LT9-0102', aspect: 'cognitive', integrity: 81, coherence: 14, grip: 8,
+    abilities: [ABILITIES.audit, ABILITIES['strike-record'], ABILITIES.tally, ABILITIES.deny],
     reading: 'A clerk. Wins by making the other thing unable to do its job.',
   },
   truncheon: {
     id: 'truncheon', name: 'TRUNCHEON', castOf: 'Petty Halden Ross, Watch, d. 2234',
-    serial: 'LT9-0511', aspect: 'kinetic', integrity: 70, coherence: 9, grip: 5,
+    serial: 'LT9-0511', aspect: 'kinetic', integrity: 109, coherence: 9, grip: 5,
     abilities: [ABILITIES.truncheon, ABILITIES.restrain, ABILITIES['set-brace'], ABILITIES['gasket-read']],
     reading: 'Watch cast. Slow, heavy, and extremely difficult to talk around.',
   },
   kiln: {
     id: 'kiln', name: 'KILN', castOf: 'Ada Verrow, loom tech, d. 2231',
-    serial: 'LT9-0388', aspect: 'thermal', integrity: 58, coherence: 12, grip: 7,
+    serial: 'LT9-0388', aspect: 'thermal', integrity: 90, coherence: 12, grip: 7,
     abilities: [ABILITIES['flare-off'], ABILITIES['kiln-draw'], ABILITIES['bank-heat'], ABILITIES.cauterise],
     reading: 'A loom tech who ran her projector too hot and knew she was doing it.',
   },
 };
+
+export interface SimResult {
+  result: 'win' | 'lose' | 'flee' | 'timeout';
+  turns: number;
+  used: Map<string, number>;
+  damageDealt: number;
+  damageTaken: number;
+  meIntegrityLeft: number;
+  foeIntegrityLeft: number;
+  scanned: boolean;
+}
 
 export interface EncounterDef {
   id: string;
@@ -281,21 +325,21 @@ export interface EncounterDef {
 
 const secondLoom: RevenantDef = {
   id: 'second-loom', name: 'SECOND LOOM', castOf: 'a training cast, unnamed',
-  serial: 'TRN-0001', aspect: 'thermal', integrity: 34, coherence: 8, grip: 5,
+  serial: 'TRN-0001', aspect: 'thermal', integrity: 53, coherence: 8, grip: 5,
   abilities: [ABILITIES['loom-tap'], ABILITIES['bank-heat']],
   reading: 'A training cast. No person in it at all, which is its own kind of unsettling.',
 };
 
 const bailiff: RevenantDef = {
   id: 'bailiff', name: 'BAILIFF', castOf: 'Watch drone pattern, no person',
-  serial: 'LT9-W03', aspect: 'kinetic', integrity: 58, coherence: 10, grip: 7,
+  serial: 'LT9-W03', aspect: 'kinetic', integrity: 90, coherence: 10, grip: 7,
   abilities: [ABILITIES.baton, ABILITIES.caution, ABILITIES['set-brace']],
   reading: 'Not a cast at all — a pattern. The Watch runs three of these and calls them all Bailiff.',
 };
 
 const sentinel: RevenantDef = {
   id: 'registry-sentinel', name: 'REGISTRY SENTINEL', castOf: 'UNRESOLVED \x7f serial prefix KH-11',
-  serial: 'KH-11-4402', aspect: 'field', integrity: 78, coherence: 14, grip: 8,
+  serial: 'KH-11-4402', aspect: 'field', integrity: 106, coherence: 14, grip: 8,
   abilities: [ABILITIES.writ, ABILITIES.deny, ABILITIES['seal-order'], ABILITIES['file-away']],
   reading:
     'The cast will not name itself. The serial is not a ship serial. KH is a place, and the ' +
@@ -365,6 +409,8 @@ interface Combatant {
   guard: number;
   /** Set once the player scans it. */
   known: boolean;
+  /** Opponent has read this cast: its weaknesses are exposed. */
+  analysed: boolean;
   ghost: number;
 }
 
@@ -378,6 +424,7 @@ function makeCombatant(def: RevenantDef, known = false): Combatant {
     statuses: new Map(),
     guard: 0,
     known,
+    analysed: false,
     ghost: 1,
   };
 }
@@ -465,6 +512,13 @@ export class BattleScene implements Scene {
       target.statuses.delete('bleedover');
     }
     if (this.hasStatus(target, 'guttering')) dmg *= 1.3;
+    // A cast you have read is a cast you know where to hit. This is what makes
+    // the read abilities worth a turn — measurement showed nobody ever spent
+    // one on pure information.
+    if (target.analysed) dmg *= 1.3;
+    // Anchored used to mean only "cannot withdraw", which is worth nothing in a
+    // fight nobody withdraws from. Now it costs the target its footing.
+    if (this.hasStatus(source, 'anchored')) dmg *= 0.65;
     dmg = Math.max(1, Math.round(dmg));
     target.ghost = target.integrity / target.maxIntegrity;
     target.integrity = Math.max(0, target.integrity - dmg);
@@ -489,6 +543,7 @@ export class BattleScene implements Scene {
         return;
       }
       target.known = true;
+      target.analysed = true;
       audio.sfx('scan');
       this.msg(`READ \x7f ${target.def.name}: ${target.def.reading}`);
       bus.emit('combat:scanned', { revenantId: target.def.id });
@@ -540,7 +595,7 @@ export class BattleScene implements Scene {
    */
   private enemyChoose(): Ability {
     const kit = this.foe.def.abilities.filter((a) => this.foe.coherence >= a.cost);
-    if (!kit.length) return this.foe.def.abilities[0];
+    if (!kit.length) return ABILITIES.steady;
 
     const lowCoherence = this.foe.coherence <= 3;
     const hurt = this.foe.integrity / this.foe.maxIntegrity < 0.35;
@@ -625,6 +680,96 @@ export class BattleScene implements Scene {
     if (r === 'lose') this.enc.onLose?.(s);
     if (this.foe.known) this.enc.onScan?.(s);
     bus.emit('combat:end', { encounterId: this.enc.id, result: r });
+  }
+
+
+  /** Test-only view of menu state, so the playtest can navigate deterministically
+   *  instead of guessing at key counts on a wrapping menu. */
+  get debugMenu(): { phase: string; menuIndex: number; abilityIndex: number } {
+    return { phase: this.phase, menuIndex: this.menuIndex, abilityIndex: this.abilityIndex };
+  }
+
+  // --- headless simulation ----------------------------------------------
+
+  /**
+   * Runs a whole battle instantly, with no rendering, audio or timers, using
+   * the SAME rule methods the played game uses. A balance simulator that
+   * reimplements the rules measures a game that isn't the one shipping — so
+   * this drives the real ones and only replaces the player's input.
+   *
+   * `policy` picks the player's ability each turn from the affordable set.
+   * Returns per-battle telemetry for the balance tool.
+   */
+  simulate(
+    policy: (me: Combatant, foe: Combatant, kit: Ability[], rng: Rng) => Ability,
+    seed: number,
+    maxTurns = 60,
+  ): SimResult {
+    this.rng = new Rng(seed);
+    this.me = makeCombatant(this.simTessera ?? TESSERAE['grey-liner'], true);
+    this.foe = makeCombatant(this.enc.enemy, false);
+    this.result = null;
+    this.turn = 0;
+    const used = new Map<string, number>();
+    let damageDealt = 0;
+    let damageTaken = 0;
+
+    while (!this.result && this.turn < maxTurns) {
+      const kit = this.me.def.abilities.filter((a) => this.me.coherence >= a.cost);
+      // Mirrors the played game's STEADY fallback exactly.
+      const choices = kit.length ? kit : [ABILITIES.steady];
+      const ab = policy(this.me, this.foe, choices, this.rng);
+      used.set(ab.id, (used.get(ab.id) ?? 0) + 1);
+      const foeBefore = this.foe.integrity;
+      const meBefore = this.me.integrity;
+      this.simAct(ab);
+      damageDealt += Math.max(0, foeBefore - this.foe.integrity);
+      damageTaken += Math.max(0, meBefore - this.me.integrity);
+    }
+
+    return {
+      result: this.result ?? 'timeout',
+      turns: this.turn,
+      used,
+      damageDealt,
+      damageTaken,
+      meIntegrityLeft: this.me.integrity / this.me.maxIntegrity,
+      foeIntegrityLeft: this.foe.integrity / this.foe.maxIntegrity,
+      scanned: this.foe.known,
+    };
+  }
+
+  /** The tessera to simulate with. Only used by the balance tool. */
+  simTessera: RevenantDef | null = null;
+
+  /** playerAct without the App dependency (no rewards, no events, no audio). */
+  private simAct(ab: Ability): void {
+    this.turn++;
+    this.me.guard = 0;
+    this.foe.guard = 0;
+    const first = this.me.def.grip >= this.foe.def.grip;
+    const enemyAb = this.enemyChoose();
+
+    const doMe = () => this.useAbility(this.me, this.foe, ab, this.me.def.name);
+    const doFoe = () => {
+      if (this.foe.integrity > 0) this.useAbility(this.foe, this.me, enemyAb, this.foe.def.name);
+    };
+
+    if (first) {
+      doMe();
+      if (this.foe.integrity > 0) doFoe();
+    } else {
+      doFoe();
+      if (this.me.integrity > 0) doMe();
+    }
+
+    this.tickStatuses(this.me, this.me.def.name);
+    this.tickStatuses(this.foe, this.foe.def.name);
+    this.me.coherence = Math.min(this.me.maxCoherence, this.me.coherence + 1);
+    this.foe.coherence = Math.min(this.foe.maxCoherence, this.foe.coherence + 1);
+
+    if (this.foe.integrity <= 0) this.result = 'win';
+    else if (this.me.integrity <= 0) this.result = 'lose';
   }
 
   // --- update -----------------------------------------------------------
@@ -727,6 +872,14 @@ export class BattleScene implements Scene {
       }
       if (app.input.pressed('confirm')) {
         const ab = kit[this.abilityIndex];
+        const blocked = (a: Ability) =>
+          a.cost > this.me.coherence ||
+          (this.hasStatus(this.me, 'sealed') && a.kind !== 'strike');
+        if (kit.every(blocked)) {
+          this.msg('Nothing will hold. The projection steadies itself.');
+          this.playerAct(app, ABILITIES.steady);
+          return;
+        }
         const sealed = this.hasStatus(this.me, 'sealed') && ab.kind !== 'strike';
         if (ab.cost > this.me.coherence || sealed) {
           audio.sfx('ui.error');

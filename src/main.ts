@@ -103,6 +103,7 @@ async function boot(): Promise<void> {
     /** Snapshot the playtest can assert against without reaching into scenes. */
     probe: () => ({
       scene: app.scene?.id ?? '-',
+      battle: (app.scene as { debugMenu?: unknown })?.debugMenu ?? null,
       room: app.state.room,
       name: app.state.profile.name,
       background: app.state.profile.background,

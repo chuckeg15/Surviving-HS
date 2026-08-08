@@ -235,14 +235,35 @@ async function main() {
   );
   await shot('11-battle-read');
 
-  // back up to PROJECT — otherwise every later confirm just re-reads
-  await key('ArrowUp');
-
-  // fight to a conclusion
+  // Fight to a conclusion. Confirm alone is not enough: the cursor is left on
+  // READ, which is free and always available, so a confirm-only loop re-reads
+  // forever and the fight never advances. Each iteration backs out to the root
+  // menu, moves to PROJECT, then confirms twice (ability list, then ability).
+  // The budget is generous because the balance pass roughly doubled battle
+  // length, from 4 turns to 8-11.
   let done = false;
-  for (let i = 0; i < 60 && !done; i++) {
+  for (let i = 0; i < 90 && !done; i++) {
+    await key('KeyX');
+    await page.waitForTimeout(90);
+    // The root menu wraps, so a fixed number of ArrowUps is a no-op on a
+    // three-item list. Navigate by reading the real cursor position.
+    for (let g = 0; g < 4; g++) {
+      const b = (await probe()).battle;
+      if (!b || b.phase !== 'menu' || b.menuIndex === 0) break;
+      await key('ArrowUp');
+      await page.waitForTimeout(70);
+    }
     await key('KeyZ');
-    await page.waitForTimeout(160);
+    await page.waitForTimeout(120);
+    // Cycle which ability is picked. Slot 0 is the expensive strike, so a loop
+    // that always takes slot 0 stalls on "Not enough coherence" the moment the
+    // coherence economy bites - which, after the balance pass, it does.
+    for (let d = 0; d < i % 4; d++) {
+      await key('ArrowDown');
+      await page.waitForTimeout(40);
+    }
+    await key('KeyZ');
+    await page.waitForTimeout(140);
     const p = await probe();
     if (p.scene !== 'battle') {
       done = true;

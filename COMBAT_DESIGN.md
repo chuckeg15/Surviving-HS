@@ -104,3 +104,87 @@ Sentinel (the real fight; its cast will not name itself).
 Balance is unmeasured. Average battle length, ability usage rates, dominant
 strategies and the early-versus-late difficulty curve have not been instrumented.
 The numbers here were chosen by judgement and should be treated as a first pass.
+
+---
+
+# Balance pass — measured
+
+Run it yourself: `node tools/balance.mjs --runs 200`. The tool drives the real
+rules (`BattleScene.simulate`) across every tessera x encounter pair under four
+player policies — *greedy* (always the biggest expected damage), *random*,
+*considered* (read, then heal when hurt, guard when out of coherence, otherwise
+best-matched strike), and *support* (prefers control/disrupt/read).
+
+## What the first measurement found
+
+The design claimed "no ability is a renamed damage number". Measurement
+falsified it:
+
+| Metric | Before |
+|---|---|
+| Dead abilities (<2% of their own kit) | **13 of 20** |
+| Dominant abilities (>60% of their kit) | **4** (one per tessera, 88-100%) |
+| Average battle length | **~4 turns** |
+| Boss win rate, greedy vs considered | **40% vs 40% — identical** |
+| Boss win rate by tessera | **100 / 0 / 0 / 100 / 0** |
+
+Three findings, in order of severity:
+
+1. **Thinking did nothing.** A greedy damage-maximiser won exactly as often as
+   a considered player. There was no tactical layer to find.
+2. **Aspect was destiny.** Every tessera was mono-aspect on offence, so three of
+   the five starting casts could not deal unpenalised damage to the boss under
+   any play, and lost 100% of the time.
+3. **Fights were too short for anything to matter.** At ~4 turns, statuses,
+   guards and control never paid off before someone died.
+
+## What changed
+
+| Change | Why |
+|---|---|
+| Aspect multipliers 1.5/0.66 → **1.4/0.78** | A bad matchup should be a disadvantage, not a verdict |
+| Integrity **+55%** across all combatants | Fights of 8-11 turns give tactics room to pay |
+| **Reading a cast now grants +30% damage against it** | Nobody ever spent a turn on pure information; now the read is a real opening, and it is the same action that yields evidence |
+| **Anchored now cuts the target's damage by 35%** | It previously meant only "cannot withdraw", which is worth nothing in a fight nobody withdraws from |
+| Primary strike costs **+1**; guards restore more | The best strike could be used every turn; now it cannot |
+| **Every kit gained an off-aspect strike** | Removes unplayable matchups and puts a real decision in the loadout |
+| **STEADY**: a free, never-sealed fallback action | Fixes a genuine soft-lock (below) |
+
+## What it is now
+
+| Metric | Before | After |
+|---|---|---|
+| Dead abilities | 13 | **2** |
+| Dominant abilities | 4 | **1** |
+| Average battle length | ~4 turns | **8-11 turns** |
+| Boss win rate, greedy | 40% | **43%** |
+| Boss win rate, considered | 40% | **53%** |
+| Boss win rate, random | 1% | **24%** |
+| Tutorial win rate, considered | 100% | **100%** |
+
+`kiln` is now the model kit — 52 / 19 / 15 / 14% across its four abilities.
+`lampwright` went from two dead abilities to 40 / 33 / 16 / 11%.
+
+## The soft-lock the pass found
+
+Raising strike costs exposed a real bug: **coherence only regenerates when a
+turn advances, so a player holding nothing affordable could press confirm
+forever and never recover.** Every press printed "Not enough coherence" and
+returned without advancing the turn. The playtest caught it.
+
+Fixed with **STEADY** — zero cost, never sealed, always available, restores
+coherence and passes the turn. Both the player and the enemy AI fall back to it.
+
+## Still wrong
+
+Stated plainly, because the numbers say so:
+
+- **`lampwright` still loses the boss fight 100% of the time.** It survives
+  12.4 turns and cannot close. A sustain kit that cannot win is not a build.
+- **`truncheon` is still dominant at 75%**, and its `restrain` is dead at 0%.
+- **`tallyman/audit` is dead at 0%.**
+- **Boss sits at 53% for a considered player**, just under the 55-80% target.
+- **The support policy wins 5% against the boss.** A control-first player loses.
+  Control is better than it was and still not competitive.
+- All of this is simulated. **No human has played a single battle.** The
+  policies are stand-ins for players, and a stand-in is not a player.

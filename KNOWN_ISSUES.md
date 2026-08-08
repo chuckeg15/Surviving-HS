@@ -94,6 +94,25 @@ Still below the bar:
 - Portrait hair still reads slightly helmet-like on the short styles; the
   lengths (long/bob/braids) came out better than the crops.
 
+## Combat balance
+
+A measured pass has been run (`node tools/balance.mjs`, see COMBAT_DESIGN.md).
+Dead abilities went 13 -> 2, dominant 4 -> 1, battle length ~4 -> 8-11 turns,
+and a greedy damage-maximiser no longer performs as well as a considered
+player. The pass also found and fixed a genuine soft-lock: coherence only
+regenerates on turn advance, so a player with nothing affordable could press
+confirm forever.
+
+Still wrong, per the numbers:
+- `lampwright` loses the Chapter One boss 100% of the time - it survives 12
+  turns and cannot close.
+- `truncheon` remains dominant at 75%; its `restrain` is dead at 0%.
+- `tallyman/audit` is dead at 0%.
+- Boss win rate is 53% for a considered player, just under the 55-80% target.
+- A control-first player wins 5% against the boss. Control is competitive with
+  nothing.
+- Every one of these figures is simulated. No human has played a battle.
+
 ## Visual issues still open
 
 Found by inspecting captured frames:
