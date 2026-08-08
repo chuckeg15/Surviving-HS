@@ -150,7 +150,7 @@ const eReactor: RoomDef = {
     '############################',
     '##g#########G##########g####',
     '#..........................#',
-    '#..MMMM.......MMMM.........#',
+    '#..MMMM..Q....MMMM.........#',
     '#..........................#',
     '#..HHHHHHHHHHHHHHHHHHHHH...#',
     '#....V.......$......V......#',
@@ -160,6 +160,7 @@ const eReactor: RoomDef = {
     '############################',
   ],
   marks: {
+    Q: { prop: 'prop.console.dead', solid: true, interact: 'gantry-minder-trigger' },
     M: {
       prop: 'prop.console.b',
       solid: true,

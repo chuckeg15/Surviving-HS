@@ -261,6 +261,23 @@ Three changes, each aimed at a measured cause rather than at the symptom:
 | gantry-minder, considered | 48% | **88%** |
 | ivo-bailiff, considered | 60% | **80%** |
 
+### Reachability — the failure this pass nearly repeated
+
+The three new encounters shipped balanced, documented, and **unreachable**: they
+existed in `ENCOUNTERS` and nothing in the game could trigger any of them. That
+is the same defect as `ChapterEndScene`, which sat unreachable for far longer.
+Content nothing can reach is content that does not exist, and a balance table
+for it is worse than useless because it reads as evidence that it works.
+
+| Encounter | Trigger |
+|---|---|
+| `annex-admittance` | The Annex 3 lock in the recovery ward, if you touch it without medical clearance |
+| `gantry-minder` | The gantry housing in reactor control, which projects at anyone who passes |
+| `ivo-escalation` | **Still unreachable.** It needs the duct-forcing path from CANON §6, which is not yet built |
+
+Every encounter id should be greppable outside `roster.ts` and `battle.ts`. If
+it is not, no player will ever see it.
+
 ### Still wrong
 
 - **`tallyman/audit` still measures 0%**, but this one is partly a measurement

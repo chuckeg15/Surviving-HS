@@ -414,6 +414,44 @@ export interface InteractDef {
 const has = (s: GameState, c: string) => clearancesOf(s).includes(c);
 
 export const INTERACTABLES: Record<string, InteractDef> = {
+  // --- encounter triggers ------------------------------------------------
+  // Content that exists but nothing can reach is content that does not exist.
+  // Each of these is the ONLY way its encounter is entered.
+  'annex-lock': {
+    id: 'annex-lock',
+    label: 'Annex lock',
+    run: (s) => {
+      if (has(s, 'medical')) {
+        return { lines: ['The lock reads your tessera and opens. It does not care why you are here.'] };
+      }
+      if (s.has('beat-admittance')) {
+        return { lines: ['The lock hangs open. Whatever was minding it is not minding it any more.'] };
+      }
+      return {
+        lines: [
+          'You put your hand on the lock without the clearance to.',
+          'Something unfolds out of the doorframe \x7f a projection with a clerk\'s posture and no face to speak of.',
+        ],
+        battle: 'annex-admittance',
+      };
+    },
+  },
+  'gantry-minder-trigger': {
+    id: 'gantry-minder-trigger',
+    label: 'Gantry housing',
+    run: (s) => {
+      if (s.has('beat-minder')) {
+        return { lines: ['The housing is quiet. The maintenance cast has not reprojected.'] };
+      }
+      return {
+        lines: [
+          'The gantry housing wakes as you pass and projects what is in it, because that is what it is for.',
+          'It has been running maintenance in an empty reactor hall for fourteen months.',
+        ],
+        battle: 'gantry-minder',
+      };
+    },
+  },
   // --- Deck B -----------------------------------------------------------
   'b-signage': {
     id: 'b-signage',

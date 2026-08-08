@@ -132,13 +132,14 @@ const dWard: RoomDef = {
     '#......................#',
     '#.B.B.B.B....B.B.B.B...#',
     '#......................#',
-    '#.........p....$.......#',
+    '#.........p....$....X..#',
     '#....UU..........AA....#',
     '########################',
   ],
   marks: {
     B: { prop: 'prop.medbed', solid: true, interact: 'ward-bed' },
     p: { prop: 'prop.plant.a', solid: true, interact: 'ward-plant' },
+    X: { prop: 'prop.console.dead', solid: true, interact: 'annex-lock' },
     $: { spawn: 'default' },
     U: { door: { to: 'd-triage', spawn: 'from-ward' }, spawn: 'from-triage' },
     A: {
