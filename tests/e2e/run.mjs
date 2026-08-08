@@ -305,6 +305,35 @@ async function main() {
   });
   check('a corrupt save is reported, not crashed on', corrupt.damaged === true);
 
+  // --- 9b. the chapter can actually be finished --------------------------
+  // Regression guard: ChapterEndScene shipped for a long time with nothing
+  // able to reach it. This drives the decision to a real outcome and asserts
+  // the world state actually diverged, not just the text.
+  console.log('\nchapter ending');
+  await page.evaluate(async () => {
+    await window.__candlewake.gotoScene('chapter');
+  });
+  await page.waitForTimeout(700);
+  const atDecision = await probe();
+  check('the chapter decision is reachable', atDecision.scene === 'chapter-decision',
+    `scene=${atDecision.scene}`);
+  await shot('13-chapter-decision');
+
+  // choose "say nothing" - always available, so the test never depends on a gate
+  for (let i = 0; i < 3; i++) { await key('ArrowDown'); await page.waitForTimeout(70); }
+  await key('KeyZ'); await page.waitForTimeout(250);
+  await key('KeyZ'); await page.waitForTimeout(900);
+  const ended = await probe();
+  check('choosing an outcome ends the chapter', ended.scene === 'chapter-end',
+    `scene=${ended.scene}`);
+  const endState = await page.evaluate(() => {
+    const s = window.__candlewake.app.state;
+    return { decided: s.flag('chapter-decided'), quiet: s.has('kept-quiet') };
+  });
+  check('the outcome writes distinct world state', endState.decided === 'O4' && endState.quiet,
+    JSON.stringify(endState));
+  await shot('14-chapter-end');
+
   // --- 10. performance --------------------------------------------------
   console.log('\nperformance');
   const perf = await page.evaluate(() => window.__candlewake.perf());

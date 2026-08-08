@@ -1124,8 +1124,10 @@ export class ChapterEndScene implements Scene {
     }
 
     // consequence summary — states what carried forward, reveals nothing extra
-    y = Math.max(y + 4, 140);
-    p.panel(24, y, VW - 48, VH - y - 24, 'terminal');
+    // Size to content. A fixed height let the last two facts spill outside the
+    // panel border, which read as a rendering fault rather than a summary.
+    y = Math.min(Math.max(y + 4, 132), VH - 78);
+    p.panel(24, y, VW - 48, 4 * 10 + 24, 'terminal');
     p.text('WHAT CARRIES FORWARD', 30, y + 6, { color: PAL.halo3 });
     let cy = y + 18;
     const facts: string[] = [
