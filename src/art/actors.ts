@@ -153,9 +153,21 @@ export const EYE_COLORS: string[] = [
   PAL.halo2,
 ];
 
+/**
+ * A skin tone and its shading steps.
+ *
+ * Clamping the index was wrong at both ends of the ramp: at the darkest skin,
+ * base, dark and darker all resolved to skin0, so the face had no shading at
+ * all and read as a silhouette with eyes. Past the ends the step continues
+ * into void or bone instead, which keeps every tone equally legible \x7f the
+ * darkest character must be as readable as the lightest.
+ */
 export function skinTone(i: number, step: number): string {
   const r = RAMP.skin;
-  const idx = Math.max(0, Math.min(r.length - 1, i + step));
+  const idx = i + step;
+  if (idx < 0) return mix(PAL[r[0]], PAL.void0, Math.min(0.75, -idx * 0.3));
+  const top = r.length - 1;
+  if (idx > top) return mix(PAL[r[top]], PAL.bone3, Math.min(0.7, (idx - top) * 0.32));
   return PAL[r[idx]];
 }
 
@@ -766,47 +778,83 @@ export function buildPortrait(look: ActorLook, expr: Expression = 'neutral'): HT
   for (let y = 0; y < PORTRAIT_H; y += 4) rect(s, 0, y, PORTRAIT_W, 1, PAL.void0);
 
   const cx = 20;
-  const headW = look.frame === 'broad' ? 24 : look.frame === 'slight' ? 20 : 22;
+  const headW = look.frame === 'broad' ? 26 : look.frame === 'slight' ? 22 : 24;
   const hx = cx - (headW >> 1);
-  const headTop = 5;
-  const headH = 28;
+  const headTop = 3;
+  const headH = 31;
+
+  /**
+   * Skull silhouette, as an inset per row. The crown rounds off over four
+   * rows; the jaw narrows over the last eight to a chin ten pixels across.
+   *
+   * The earlier version tapered to a point and shaded the taper dark, so the
+   * chin ran straight into the neck below it and the whole lower half of the
+   * portrait read as one long wedge. Stopping the taper short of a point, and
+   * keeping the chin lit rather than shaded, is what separates them.
+   */
+  const inset = (y: number): number => {
+    const fromBottom = headH - 1 - y;
+    let i = 0;
+    if (y === 0) i = 4;
+    else if (y === 1) i = 3;
+    else if (y === 2) i = 2;
+    else if (y <= 4) i = 1;
+    if (fromBottom <= 7) i = Math.max(i, Math.min(7, 8 - fromBottom));
+    return i;
+  };
 
   // --- shoulders --------------------------------------------------------
-  const shW = headW + (look.frame === 'broad' ? 16 : 12);
+  // A bust should fill its frame. Narrow shoulders low in the panel left the
+  // head floating in dead space and made the neck look a foot long.
+  const shTop = 36;
+  const shW = headW + (look.frame === 'broad' ? 16 : look.frame === 'slight' ? 10 : 13);
   const sx = cx - (shW >> 1);
-  rect(s, sx, 38, shW, 10, PAL[u.body]);
-  rect(s, sx, 38, shW, 1, PAL[u.light]);
-  rect(s, sx, 38, 2, 10, PAL[u.light]);
-  rect(s, sx + shW - 2, 38, 2, 10, PAL[u.shade]);
+  rect(s, sx, shTop + 1, shW, PORTRAIT_H - shTop - 1, PAL[u.body]);
+  // the trapezius slopes up to the neck; a flat bar reads as a plank
+  rect(s, sx + 3, shTop, shW - 6, 1, PAL[u.body]);
+  rect(s, sx + 3, shTop, shW - 6, 1, PAL[u.light]);
+  rect(s, sx + 1, shTop + 1, shW - 2, 1, PAL[u.light]);
+  rect(s, sx, shTop + 2, 2, PORTRAIT_H - shTop - 2, PAL[u.light]);
+  rect(s, sx + shW - 2, shTop + 2, 2, PORTRAIT_H - shTop - 2, PAL[u.shade]);
   // collar opens around the neck rather than sitting as a straight bar
-  rect(s, cx - 7, 38, 14, 4, PAL[u.collar]);
-  rect(s, cx - 5, 38, 10, 3, PAL[u.shade]);
-  rect(s, cx - 4, 38, 8, 2, PAL[u.body]);
-  rect(s, sx + 2, 43, 7, 1, look.accent); // department flash
-  rect(s, sx + 2, 44, 5, 1, mix(look.accent, PAL.void0, 0.4));
+  rect(s, cx - 9, shTop, 18, 5, PAL[u.collar]);
+  rect(s, cx - 7, shTop, 14, 4, PAL[u.shade]);
+  rect(s, cx - 6, shTop, 12, 3, PAL[u.body]);
+  rect(s, sx + 3, shTop + 6, 8, 1, look.accent); // department flash
+  rect(s, sx + 3, shTop + 7, 5, 1, mix(look.accent, PAL.void0, 0.4));
 
   // --- neck -------------------------------------------------------------
-  rect(s, cx - 5, 29, 10, 10, dark);
-  rect(s, cx - 5, 29, 2, 10, base);
-  rect(s, cx - 5, 34, 10, 2, darker); // shadow cast by the jaw
+  // Narrower than the jaw, and drawn first so the chin overlaps it. Only three
+  // rows of it are ever visible; more than that is a giraffe.
+  rect(s, cx - 5, 28, 10, 10, dark);
+  rect(s, cx - 5, 28, 2, 10, base);
+  rect(s, cx - 5, 32, 10, 2, darker); // shadow the jaw casts
 
-  // --- head, with a rounded crown and a tapered jaw ---------------------
+  // --- head -------------------------------------------------------------
+  /**
+   * The lit edge is a specular, not a step up the skin ramp. A ramp step is a
+   * fixed distance in the palette, so at the darkest tones it lifted the face
+   * by almost nothing and every dark-skinned character rendered as a
+   * silhouette with eyes. Mixing toward the deck-light colour lifts every tone
+   * by the same proportion, so the darkest face is as legible as the lightest.
+   */
+  const key = mix(lite, PAL.bone3, 0.3);
+  /**
+   * One pixel of rim on the shadow side. Correct chiaroscuro alone loses the
+   * silhouette: the shaded cheek of a dark-skinned character and the dark
+   * backing behind it are the same value, so the head has no edge. The rim
+   * reads as bounce off the deck plating and costs a single column.
+   */
+  const rim = mix(base, PAL.bone3, 0.18);
   for (let y = 0; y < headH; y++) {
-    let inset = 0;
-    if (y < 3) inset = 3 - y; // crown
-    if (y >= headH - 8) inset = Math.max(inset, Math.min(5, y - (headH - 9))); // jaw -> chin
-    rect(s, hx + inset, headTop + y, headW - inset * 2, 1, base);
+    const i = inset(y);
+    rect(s, hx + i, headTop + y, headW - i * 2, 1, base);
+    // form shading: light from the upper left, the far side falls away
+    rect(s, hx + i, headTop + y, 2, 1, key);
+    rect(s, hx + headW - i - 3, headTop + y, 3, 1, dark);
+    px(s, hx + headW - i - 1, headTop + y, rim);
   }
-  // form shading: light from the upper left, the side of the face falls away
-  for (let y = 0; y < headH; y++) {
-    let inset = 0;
-    if (y < 3) inset = 3 - y;
-    if (y >= headH - 8) inset = Math.max(inset, Math.min(5, y - (headH - 9)));
-    rect(s, hx + inset, headTop + y, 2, 1, lite);
-    rect(s, hx + headW - inset - 3, headTop + y, 3, 1, dark);
-  }
-  rect(s, hx + 6, headTop + headH - 3, headW - 12, 2, darker); // under the chin
-  // cheekbones
+  // cheekbones — the only structure the middle of the face has
   rect(s, hx + 2, headTop + 17, 3, 4, dark);
   rect(s, hx + headW - 5, headTop + 17, 3, 4, darker);
 
@@ -815,22 +863,29 @@ export function buildPortrait(look: ActorLook, expr: Expression = 'neutral'): HT
     const c = look.hairColor;
     const cs = mix(c, PAL.void0, 0.4);
     const cl = mix(c, PAL.bone3, 0.3);
-    const crownH = look.hair === 'shaved' ? 6 : 11;
+    const crownH = look.hair === 'shaved' ? 7 : 11;
+    // The hair mass follows the skull it sits on, one pixel proud of it. The
+    // previous version laid a straight dark bar down the right-hand side, and
+    // a straight edge is precisely what makes hair read as a moulded helmet.
     for (let y = 0; y < crownH; y++) {
-      let inset = 0;
-      if (y < 3) inset = 3 - y;
-      rect(s, hx + inset - 1, headTop + y - 2, headW - inset * 2 + 2, 1, c);
+      const i = Math.max(0, inset(y) - 1);
+      rect(s, hx + i - 1, headTop + y - 2, headW - i * 2 + 2, 1, c);
+      rect(s, hx + headW - i - 3, headTop + y - 2, 3, 1, cs);
     }
-    rect(s, hx, headTop - 2, headW - 6, 2, cl); // sheen off the crown
-    rect(s, hx + headW - 4, headTop - 1, 3, crownH, cs);
+    // Sheen: a broken band inside the hair mass, not along its outer edge.
+    // On the edge it read as scratches; unbroken it reads as vinyl.
+    rect(s, hx + 4, headTop + 1, 6, 1, cl);
+    rect(s, hx + 3, headTop + 2, 3, 1, cl);
+    px(s, hx + 11, headTop + 2, cl);
 
     // Hairline: temples come down past the brow, the fringe does not. That
     // asymmetry is the whole difference between hair and a helmet.
     if (look.hair !== 'shaved') {
-      rect(s, hx - 1, headTop + crownH - 3, 5, 6, c);
-      rect(s, hx + headW - 4, headTop + crownH - 3, 5, 6, cs);
-      rect(s, hx + 4, headTop + crownH - 2, 5, 1, c);
-      px(s, hx + 9, headTop + crownH - 2, cs);
+      rect(s, hx - 1, headTop + crownH - 4, 4, 7, c);
+      rect(s, hx + headW - 3, headTop + crownH - 4, 4, 7, cs);
+      rect(s, hx + 3, headTop + crownH - 3, 6, 1, c);
+      px(s, hx + 9, headTop + crownH - 3, c);
+      px(s, hx + headW - 6, headTop + crownH - 2, cs);
     }
     // side locks / lengths
     const len =
@@ -851,19 +906,44 @@ export function buildPortrait(look: ActorLook, expr: Expression = 'neutral'): HT
       rect(s, hx + headW + 3, headTop + 6, 1, 12, cs);
     }
     if (look.hair === 'topknot') {
-      rect(s, cx - 4, headTop - 8, 8, 6, c);
-      rect(s, cx - 4, headTop - 8, 8, 2, cl);
-      rect(s, cx + 2, headTop - 7, 2, 5, cs);
+      /**
+       * Was drawn at headTop-8, off the top of the canvas: the style was
+       * selectable and rendered nothing. There is no headroom above the crown
+       * in a 48px bust, so the knot sits high and back instead, where it
+       * breaks the silhouette. It needs its own dark rim \x7f drawn in the same
+       * hue directly on top of the crown, it simply disappeared into it.
+       */
+      /**
+       * A protruding bun does not fit: the crown already starts on row 1 of a
+       * 48px bust, so there is no headroom, and every attempt at one read as a
+       * box balanced on the head. Bound-up hair is drawn instead \x7f swept
+       * back off the temples, gathered under a band. Same silhouette language
+       * as the world sprite, which does have room for the knot itself.
+       */
+      const bandY = headTop + 2;
+      rect(s, hx + 1, bandY, headW - 2, 2, mix(c, PAL.void0, 0.55));
+      rect(s, hx + 2, bandY + 1, headW - 4, 1, mix(c, PAL.void0, 0.3));
+      // swept strands above the band, converging toward the back of the head
+      for (let i = 0; i < 5; i++) {
+        rect(s, hx + 2 + i * 4, headTop - 1, 2, 3 - (i > 2 ? 1 : 0), cs);
+      }
+      rect(s, hx + 3, bandY + 2, headW - 8, 1, cs); // the gathered mass below
     }
     if (look.hair === 'wave') {
-      px(s, hx + 5, headTop + 1, cl);
-      px(s, hx + 11, headTop, cl);
-      rect(s, hx + headW - 7, headTop + 3, 4, 1, cs);
+      // A sweep across the brow, high on one side and low on the other. Two
+      // stray highlight pixels were not enough to tell it from a crop.
+      rect(s, hx + 2, headTop + crownH - 4, 7, 2, c);
+      rect(s, hx + 8, headTop + crownH - 3, 6, 2, c);
+      rect(s, hx + 13, headTop + crownH - 2, 5, 2, cs);
+      rect(s, hx + 3, headTop + 3, 6, 1, cl);
+      rect(s, hx + 9, headTop + 5, 5, 1, cl);
     }
   }
 
   // --- eyes -------------------------------------------------------------
-  const eyeY = headTop + 13;
+  // Sat on the widest part of the skull, below the hairline with a brow's worth
+  // of forehead between. Anything higher and the fringe lands on the lashes.
+  const eyeY = headTop + 15;
   const eyeW = 6;
   const exL = hx + 3;
   const exR = hx + headW - 3 - eyeW;
@@ -887,7 +967,7 @@ export function buildPortrait(look: ActorLook, expr: Expression = 'neutral'): HT
 
   // brows carry most of the expression
   const brow = mix(look.hairColor, PAL.void0, 0.25);
-  const bY = eyeY - 5;
+  const bY = eyeY - 4;
   if (expr === 'angry') {
     rect(s, exL, bY + 1, eyeW, 2, brow);
     rect(s, exL + eyeW - 2, bY + 2, 2, 1, brow);
@@ -907,14 +987,14 @@ export function buildPortrait(look: ActorLook, expr: Expression = 'neutral'): HT
   }
 
   // --- nose -------------------------------------------------------------
-  rect(s, cx + 1, eyeY + 4, 1, 5, dark);
-  rect(s, cx - 2, eyeY + 9, 4, 1, dark);
-  px(s, cx - 2, eyeY + 8, darker);
-  px(s, cx + 1, eyeY + 9, darker);
-  rect(s, cx - 1, eyeY + 5, 1, 3, lite);
+  rect(s, cx + 1, eyeY + 3, 1, 4, dark);
+  rect(s, cx - 2, eyeY + 7, 4, 1, dark);
+  px(s, cx - 2, eyeY + 6, darker);
+  px(s, cx + 1, eyeY + 7, darker);
+  rect(s, cx - 1, eyeY + 4, 1, 3, lite);
 
   // --- mouth ------------------------------------------------------------
-  const my = eyeY + 13;
+  const my = eyeY + 10;
   switch (expr) {
     case 'angry':
       rect(s, cx - 5, my, 10, 1, darker);
