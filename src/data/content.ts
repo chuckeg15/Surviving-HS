@@ -8,6 +8,7 @@
 
 import { CLUES_D } from "@/data/deck-d";
 import { CLUES_B } from "@/data/deck-b";
+import { CLUES_E } from "@/data/deck-e";
 import { GameState, BackgroundId, RelationLevel, relationAtLeast } from '@/game/state';
 import { ActorLook } from '@/art/actors';
 import { PAL } from '@/art/palette';
@@ -157,6 +158,7 @@ export interface Clue {
 export const CLUES: Record<string, Clue> = {
   ...CLUES_D,
   ...CLUES_B,
+  ...CLUES_E,
   'transfer-record': {
     id: 'transfer-record',
     title: 'TRANSFER RECORD',

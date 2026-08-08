@@ -44,6 +44,13 @@ export const LIFT_STOPS: LiftStop[] = [
     blurb: 'Triage, ward, hydroponics beyond.',
   },
   {
+    deck: 'E',
+    room: 'e-lift',
+    spawn: 'default',
+    label: 'DECK E \x7f ENGINEERING',
+    blurb: 'Reactor control, the workshop, the Loom.',
+  },
+  {
     deck: 'B',
     room: 'b-lift',
     spawn: 'default',

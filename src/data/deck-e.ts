@@ -66,8 +66,11 @@ const eLift: RoomDef = {
     '####################',
   ],
   marks: {
+    // NOTE: the atlas registers this as 'lift.panel', not 'prop.lift.panel'.
+    // deck-b.ts uses the prefixed form, which resolves to void.black — its lift
+    // panel is currently an unlit black square. Using the real id here.
     L: {
-      prop: 'prop.lift.panel',
+      prop: 'lift.panel',
       solid: true,
       interact: 'lift-panel',
       light: { r: 20, color: PAL.amber2, i: 0.32 },

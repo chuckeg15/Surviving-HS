@@ -110,13 +110,13 @@ evidence and genuinely widens access.
 
 ## Decks built
 
-Deck C (habitation, 6 rooms), Deck D (medical, 4 rooms) and Deck B (registry,
-4 rooms) are walkable, connected by the spine lift. That is 14 rooms and 9
-NPCs on schedules, and it completes Chapter One's clue set: C8
+Deck C (habitation, 6), Deck D (medical, 4), Deck B (registry, 4) and Deck E
+(engineering and the Loom, 4) are walkable, connected by the spine lift. That
+is 18 rooms and 10 NPCs on schedules, and it completes Chapter One's clue set: C8
 (registry-checksum) and C12 (personnel-annex) exist, so deduction D4 is
 reachable and the Captain red herring is disprovable as designed.
 
-Decks A, E and F are not built. Their lift stops are gated behind flags that
+Decks A and F are not built. Their lift stops are gated behind flags that
 nothing sets, because listing a stop that would crash is worse than not
 listing it.
 
@@ -140,6 +140,11 @@ Still wrong, per the numbers:
 - Every one of these figures is simulated. No human has played a battle.
 
 ## Visual issues still open
+
+- The Loom hall (`e-loom`) is sparse below its midline and its grated floor
+  repeats hard at 5x scale. It reads as a hall, but as the payoff room for the
+  whole combat system it should carry more.
+
 
 Found by inspecting captured frames:
 
