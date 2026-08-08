@@ -160,29 +160,41 @@ export function skinTone(i: number, step: number): string {
 }
 
 /**
- * Body metrics. Proportions are deliberately chibi — the head is roughly 40% of
- * the figure's height. At a 16px cell a naturalistic 1:7 figure has a head three
- * pixels across, which cannot hold an eye, a hairline and a silhouette at once.
- * Every readable top-down RPG character solves this the same way: make the head
- * big enough to carry the identity, and let the body be a support for it.
+ * Body metrics.
+ *
+ * The head must never be wider than the shoulders. That single rule is the
+ * difference between a character and a bobblehead: arms sit two pixels outside
+ * the torso, so the shoulder span is bodyW + 4, and headW is kept below it in
+ * every frame. Head height is 7 of the 20 rows the figure actually occupies —
+ * about 1:3 — with the crown of hair reading as part of the head rather than
+ * as extra skull.
+ *
+ * A 16px cell cannot hold a naturalistic 1:7 figure (the head would be two
+ * pixels across and could not carry a face), so this sits where the readable
+ * top-down references sit: stylised, but with the body clearly the larger
+ * shape.
  */
 function metrics(f: BodyFrame) {
   switch (f) {
     case 'slight':
-      return { headW: 9, bodyW: 7, legW: 3 };
+      return { headW: 7, bodyW: 7, legW: 3 };
     case 'broad':
-      return { headW: 10, bodyW: 10, legW: 4 };
+      return { headW: 8, bodyW: 10, legW: 4 };
     default:
-      return { headW: 10, bodyW: 8, legW: 3 };
+      return { headW: 8, bodyW: 8, legW: 3 };
   }
 }
 
-const HEAD_TOP = 2;
-const HEAD_H = 10;
-const TORSO_TOP = 12;
+/**
+ * Vertical layout, in cell rows. Hair occupies row 2, the head rows 3-9, the
+ * torso 10-16, the legs 17-22, and the contact shadow row 23.
+ */
+const HEAD_TOP = 3;
+const HEAD_H = 7;
+const TORSO_TOP = 10;
 const TORSO_H = 7;
-const LEG_TOP = 19;
-const LEG_H = 4;
+const LEG_TOP = 17;
+const LEG_H = 6;
 const SHADOW_ROW = 23;
 const CX = 8;
 
@@ -214,21 +226,29 @@ function drawLegs(
   dir: Facing,
 ): void {
   const u = UNIFORMS[look.uniform];
-  const trouser = PAL[u.shade];
-  const trouserLit = PAL[u.body];
-  const boot = PAL[u.boot];
-  const bootLit = mix(PAL[u.boot], PAL.iron5, 0.5);
+  // Trousers are pushed a clear step below the tunic. When they share a value
+  // the torso and legs fuse into one tall slab and the figure stops having a
+  // waist — the single biggest reason a built sprite reads as assembled.
+  const trouser = mix(PAL[u.shade], PAL.void0, 0.3);
+  const trouserLit = mix(PAL[u.body], PAL.void0, 0.2);
+  // Boots are pushed almost to black. They are the sprite's contact with the
+  // deck, and a dark foot is what stops a walking figure looking like it hovers.
+  const boot = mix(PAL[u.boot], PAL.void0, 0.45);
+  const bootLit = mix(PAL[u.boot], PAL.iron5, 0.35);
 
   if (isSide(dir)) {
     // Profile legs scissor along x rather than stacking, and the far leg is a
-    // step darker so the two never merge into one block.
-    const f = pose === POSE.stepA ? 2 : pose === POSE.stepB ? -2 : 0;
+    // step darker so the two never merge into one block. Even standing still
+    // they are offset by a pixel — legs perfectly aligned in profile read as a
+    // skirt, which is exactly what this looked like before.
+    const f = pose === POSE.stepA ? 2 : pose === POSE.stepB ? -2 : 1;
     const back = CX - 2 - f;
     const front = CX - 2 + f;
-    rect(s, back, LEG_TOP, 4, LEG_H, mix(trouser, PAL.void0, 0.35));
+    rect(s, back, LEG_TOP, 4, LEG_H, mix(trouser, PAL.void0, 0.4));
     rect(s, back, LEG_TOP + LEG_H - 2, 4, 2, mix(boot, PAL.void0, 0.35));
     rect(s, front, LEG_TOP, 4, LEG_H, trouser);
     rect(s, front, LEG_TOP, 4, 1, trouserLit);
+    rect(s, front, LEG_TOP, 1, LEG_H, mix(trouser, PAL.void0, 0.45)); // seam
     rect(s, front, LEG_TOP + LEG_H - 2, 4, 2, boot);
     rect(s, front, LEG_TOP + LEG_H - 2, 4, 1, bootLit);
     return;
@@ -278,14 +298,19 @@ function drawTorso(
   const skin = skinTone(look.skin, 0);
   const skinDark = skinTone(look.skin, -1);
 
-  const bw = isSide(dir) ? m.bodyW - 2 : m.bodyW;
+  const bw = isSide(dir) ? m.bodyW - 1 : m.bodyW;
   const bx = CX - (bw >> 1);
 
   rect(s, bx, TORSO_TOP, bw, TORSO_H, body);
-  rect(s, bx, TORSO_TOP, bw, 1, collar); // collar catches the deck lights
+  // Sloped shoulders. A square-cornered torso is a crate; clipping the two top
+  // corners is the cheapest pixel there is for making it a person.
+  clr(s, bx, TORSO_TOP);
+  clr(s, bx + bw - 1, TORSO_TOP);
+  rect(s, bx + 1, TORSO_TOP, bw - 2, 1, collar); // collar catches the deck lights
   rect(s, bx, TORSO_TOP + 1, 1, TORSO_H - 1, light);
   rect(s, bx + bw - 1, TORSO_TOP + 1, 1, TORSO_H - 1, shade);
-  rect(s, bx + 1, TORSO_TOP + TORSO_H - 1, bw - 2, 1, shade);
+  // waist: the hem sits in shadow so the tunic ends somewhere definite
+  rect(s, bx, TORSO_TOP + TORSO_H - 1, bw, 1, mix(shade, PAL.void0, 0.35));
 
   // department band — the one mark that says which post someone holds
   if (dir === 'down') {
@@ -298,14 +323,19 @@ function drawTorso(
   }
 
   const swing = pose === POSE.stepA ? 1 : pose === POSE.stepB ? -1 : 0;
-  const raise = pose === POSE.act ? 4 : 0;
+  // The act pose reaches, it does not surrender. Four rows put the hands level
+  // with the face; two puts them out in front of the chest, which is what
+  // "operating a panel" looks like from above.
+  const raise = pose === POSE.act ? 2 : 0;
   const armTop = TORSO_TOP + 1;
   const armH = 5;
 
   if (isSide(dir)) {
-    // one arm, in front of the body, swinging with the stride
+    // One arm, in front of the body, swinging with the stride. It needs a step
+    // of separation from the tunic behind it or the profile is a flat plank.
     const ax = bx + 1 + swing;
-    rect(s, ax, armTop - raise, 2, armH, shade);
+    rect(s, ax, armTop - raise, 2, armH, mix(shade, PAL.void0, 0.3));
+    rect(s, ax, armTop - raise, 1, armH, shade);
     rect(s, ax, armTop - raise, 2, 1, body);
     rect(s, ax, armTop + armH - raise, 2, 1, skin);
     return;
@@ -338,7 +368,7 @@ function drawHead(s: Surface, look: ActorLook, m: ReturnType<typeof metrics>, di
   const hx = CX - (hw >> 1);
 
   // neck first, so the jaw overlaps it
-  rect(s, CX - 2, HEAD_TOP + HEAD_H - 2, 4, 3, darker);
+  rect(s, CX - 2, HEAD_TOP + HEAD_H - 1, 4, 2, darker);
 
   rect(s, hx, HEAD_TOP, hw, HEAD_H, base);
   // rounded skull — square heads read as boxes, not faces
@@ -353,24 +383,32 @@ function drawHead(s: Surface, look: ActorLook, m: ReturnType<typeof metrics>, di
 
   if (dir === 'up') return; // back of the head carries no features
 
-  const ey = HEAD_TOP + 5;
+  const ey = HEAD_TOP + 3;
+  /**
+   * A face four rows tall can hold two marks. Any more and it turns to mud —
+   * the earlier version had a brow band, a nose, a cheek and a mouth crammed
+   * into the same space and the result read as a smear rather than a face.
+   * Eyes and mouth, nothing else.
+   *
+   * The iris is darkened before it is drawn. A saturated eye colour at one
+   * pixel has almost no contrast against skin; the tint still comes through,
+   * but the pixel reads as an eye first.
+   */
+  const iris = mix(look.eyeColor, PAL.void0, 0.45);
   if (dir === 'down') {
-    // A two-pixel eye with a dark lash row above it is the smallest mark that
-    // still reads as a gaze rather than a smudge.
     for (const ex of [hx + 1, hx + hw - 3]) {
-      rect(s, ex, ey, 2, 1, PAL.void0);
-      rect(s, ex, ey + 1, 2, 1, look.eyeColor);
-      px(s, ex, ey + 1, mix(look.eyeColor, PAL.void0, 0.45));
+      rect(s, ex, ey, 2, 1, iris);
+      px(s, ex + 1, ey, mix(look.eyeColor, PAL.void0, 0.2));
     }
-    rect(s, CX - 1, HEAD_TOP + 8, 2, 1, darker); // mouth
-    px(s, hx + 1, HEAD_TOP + 7, dark); // cheek
-    px(s, hx + hw - 2, HEAD_TOP + 7, darker);
+    rect(s, CX - 1, HEAD_TOP + 5, 2, 1, darker); // mouth
   } else {
-    // profile: one eye set forward, plus an ear to stop the head reading flat
+    // Profile: one eye set forward, a nose breaking the front edge of the
+    // silhouette, and an ear behind it. The nose is what tells the player which
+    // way a side-facing sprite is looking without reading the eye at all.
     const ex = dir === 'left' ? hx + 1 : hx + hw - 3;
-    rect(s, ex, ey, 2, 1, PAL.void0);
-    px(s, ex, ey + 1, look.eyeColor);
-    rect(s, hx + (dir === 'left' ? 0 : hw - 1), HEAD_TOP + 8, 1, 1, darker);
+    rect(s, ex, ey, 2, 1, iris);
+    px(s, ex + (dir === 'left' ? 0 : 1), ey, mix(look.eyeColor, PAL.void0, 0.2));
+    px(s, dir === 'left' ? hx - 1 : hx + hw, HEAD_TOP + 4, base); // nose
     px(s, hx + (dir === 'left' ? hw - 2 : 1), ey + 1, dark); // ear
   }
 }
@@ -394,25 +432,34 @@ function drawHair(s: Surface, look: ActorLook, m: ReturnType<typeof metrics>, di
    * than drawn.
    */
   if (dir === 'up') {
-    const depth = look.hair === 'shaved' ? 4 : look.hair === 'crop' ? 7 : 8;
-    rect(s, hx - 1, top - 1, hw + 2, depth, c);
-    rect(s, hx - 1, top - 1, hw + 2, 1, cl);
-    rect(s, hx + 1, top, hw - 3, 1, cl);
-    rect(s, hx + hw, top - 1, 1, depth, cs);
-    rect(s, hx - 1, top + depth - 1, hw + 2, 1, cs);
-    clr(s, hx - 1, top - 1);
-    clr(s, hx + hw, top - 1);
+    // Seen from behind the hair must reach the nape, or the sprite turns its
+    // back and shows a bald patch the front view never had.
+    const depth = look.hair === 'shaved' ? 5 : look.hair === 'crop' ? 7 : 8;
+    // The back of a head is a dome, not a brick. Keeping it to the width of the
+    // skull and cutting all four corners is what stops the up-facing sprite
+    // turning into a rectangle of hair with legs.
+    rect(s, hx, top - 1, hw, depth, c);
+    rect(s, hx - 1, top + 1, hw + 2, depth - 3, c);
+    rect(s, hx + 1, top - 1, hw - 2, 1, cl);
+    rect(s, hx + 1, top, hw - 4, 1, cl);
+    rect(s, hx + hw - 1, top, 1, depth - 1, cs);
+    rect(s, hx + hw, top + 1, 1, depth - 3, cs);
+    rect(s, hx + 1, top + depth - 2, hw - 2, 1, cs);
+    clr(s, hx, top - 1);
+    clr(s, hx + hw - 1, top - 1);
+    clr(s, hx - 1, top + 1);
+    clr(s, hx + hw, top + 1);
     if (look.hair === 'long' || look.hair === 'bob') {
-      rect(s, hx - 1, top + depth - 1, hw + 2, look.hair === 'long' ? 4 : 2, c);
-      rect(s, hx + hw, top + depth - 1, 1, 3, cs);
+      rect(s, hx - 1, top + depth - 2, hw + 2, look.hair === 'long' ? 3 : 2, c);
+      rect(s, hx + hw, top + depth - 2, 1, 3, cs);
     }
     if (look.hair === 'tail' || look.hair === 'topknot') {
-      rect(s, CX - 1, top + depth - 1, 2, 4, c);
-      rect(s, CX - 1, top + depth + 2, 2, 1, cs);
+      rect(s, CX - 1, top + depth - 2, 2, 3, c);
+      rect(s, CX - 1, top + depth, 2, 1, cs);
     }
     if (look.hair === 'braids') {
-      rect(s, hx - 1, top + depth - 1, 1, 4, c);
-      rect(s, hx + hw, top + depth - 1, 1, 4, cs);
+      rect(s, hx - 1, top + depth - 2, 1, 4, c);
+      rect(s, hx + hw, top + depth - 2, 1, 4, cs);
     }
     return;
   }
@@ -426,21 +473,22 @@ function drawHair(s: Surface, look: ActorLook, m: ReturnType<typeof metrics>, di
   const crown = (rows: number, fringe: 'flat' | 'part' | 'sweep' | 'peak') => {
     rect(s, hx - 1, top - 1, hw + 2, rows, c);
     rect(s, hx - 1, top - 1, hw + 2, 1, cl);
-    rect(s, hx + 1, top, 3, 1, cl); // a highlight off the crown
+    px(s, hx + 1, top, cl); // a highlight off the crown
+    px(s, hx + 2, top, cl);
     rect(s, hx + hw, top - 1, 1, rows, cs);
     clr(s, hx - 1, top - 1);
     clr(s, hx + hw, top - 1);
     // temples drop a row past the crown on both sides
-    rect(s, hx - 1, top + rows - 1, 2, 2, c);
-    rect(s, hx + hw - 1, top + rows - 1, 2, 2, cs);
+    rect(s, hx - 1, top + rows - 1, 1, 2, c);
+    rect(s, hx + hw, top + rows - 1, 1, 2, cs);
     if (fringe === 'part') {
-      rect(s, hx + 1, top + rows - 1, 2, 1, c);
-      px(s, hx + 3, top + rows - 1, cs);
+      rect(s, hx, top + rows - 1, 2, 1, c);
+      px(s, hx + hw - 1, top + rows - 1, cs);
     } else if (fringe === 'sweep') {
-      rect(s, hx + 1, top + rows - 1, hw - 4, 1, c);
-      px(s, hx + hw - 3, top + rows, cs);
+      rect(s, hx, top + rows - 1, hw - 2, 1, c);
+      px(s, hx + hw - 2, top + rows - 1, cs);
     } else if (fringe === 'peak') {
-      rect(s, hx + (hw >> 1) - 1, top + rows - 1, 2, 1, c);
+      px(s, hx + (hw >> 1) - 1, top + rows - 1, c);
     }
   };
 
@@ -454,53 +502,53 @@ function drawHair(s: Surface, look: ActorLook, m: ReturnType<typeof metrics>, di
       clr(s, hx + hw - 1, top);
       break;
     case 'crop':
-      crown(4, 'part');
+      crown(3, 'part');
       break;
     case 'bob':
-      crown(4, 'flat');
-      rect(s, hx - 1, top + 3, 1, 5, c);
-      rect(s, hx + hw, top + 3, 1, 5, cs);
-      px(s, hx - 1, top + 8, cs);
-      px(s, hx + hw, top + 8, cs);
+      crown(3, 'flat');
+      rect(s, hx - 1, top + 2, 1, 4, c);
+      rect(s, hx + hw, top + 2, 1, 4, cs);
+      px(s, hx - 1, top + 5, cs);
+      px(s, hx + hw, top + 5, cs);
       break;
     case 'long':
-      crown(4, 'part');
-      rect(s, hx - 1, top + 3, 1, 9, c);
-      rect(s, hx + hw, top + 3, 1, 9, cs);
-      px(s, hx - 1, top + 11, cs);
+      crown(3, 'part');
+      rect(s, hx - 1, top + 2, 1, 7, c);
+      rect(s, hx + hw, top + 2, 1, 7, cs);
+      px(s, hx - 1, top + 8, cs);
       break;
     case 'wave':
-      crown(4, 'sweep');
-      rect(s, hx - 1, top + 3, 1, 4, c);
-      rect(s, hx + hw, top + 4, 1, 4, cs);
-      px(s, hx + 2, top, cl);
+      crown(3, 'sweep');
+      rect(s, hx - 1, top + 2, 1, 3, c);
+      rect(s, hx + hw, top + 3, 1, 3, cs);
+      px(s, hx + 2, top - 1, cl);
       break;
     case 'tail':
-      crown(4, 'part');
+      crown(3, 'part');
       if (isSide(dir)) {
-        rect(s, dir === 'left' ? hx + hw : hx - 1, top + 2, 2, 6, c);
-        rect(s, dir === 'left' ? hx + hw : hx - 1, top + 7, 2, 1, cs);
+        rect(s, dir === 'left' ? hx + hw : hx - 1, top + 1, 2, 5, c);
+        rect(s, dir === 'left' ? hx + hw : hx - 1, top + 5, 2, 1, cs);
       } else {
-        rect(s, hx + hw, top + 3, 1, 4, cs);
-        rect(s, hx - 1, top + 3, 1, 2, c);
+        rect(s, hx + hw, top + 2, 1, 4, cs);
+        rect(s, hx - 1, top + 2, 1, 2, c);
       }
       break;
     case 'topknot':
-      crown(4, 'peak');
-      rect(s, CX - 2, top - 4, 4, 3, c);
-      rect(s, CX - 2, top - 4, 4, 1, cl);
+      crown(3, 'peak');
+      rect(s, CX - 2, top - 3, 4, 2, c);
+      rect(s, CX - 2, top - 3, 4, 1, cl);
       px(s, CX + 1, top - 2, cs);
-      clr(s, CX - 2, top - 4);
-      clr(s, CX + 1, top - 4);
+      clr(s, CX - 2, top - 3);
+      clr(s, CX + 1, top - 3);
       break;
     case 'braids':
-      crown(4, 'flat');
-      rect(s, hx - 1, top + 3, 1, 8, c);
-      rect(s, hx + hw, top + 3, 1, 8, cs);
-      px(s, hx - 1, top + 5, cs);
-      px(s, hx - 1, top + 8, cs);
+      crown(3, 'flat');
+      rect(s, hx - 1, top + 2, 1, 6, c);
+      rect(s, hx + hw, top + 2, 1, 6, cs);
+      px(s, hx - 1, top + 4, cs);
+      px(s, hx - 1, top + 6, cs);
+      px(s, hx + hw, top + 4, c);
       px(s, hx + hw, top + 6, c);
-      px(s, hx + hw, top + 9, c);
       break;
   }
 }
@@ -514,28 +562,28 @@ function drawAccessory(
   const hw = isSide(dir) ? m.headW - 1 : m.headW;
   const hx = CX - (hw >> 1);
   const top = HEAD_TOP;
-  const ey = top + 5;
+  const ey = top + 3;
 
   switch (look.accessory) {
     case 'visor':
       // active lattice eyewear — one of the few sanctioned uses of halo
-      rect(s, hx, ey - 1, hw, 3, PAL.iron1);
-      rect(s, hx, ey - 1, hw, 1, PAL.iron3);
-      if (dir !== 'up') rect(s, hx + 1, ey, hw - 2, 1, PAL.halo2);
-      if (dir === 'down') px(s, hx + 1, ey, PAL.halo4);
+      rect(s, hx, ey, hw, 2, PAL.iron1);
+      rect(s, hx, ey, hw, 1, PAL.iron3);
+      if (dir !== 'up') rect(s, hx + 1, ey + 1, hw - 2, 1, PAL.halo2);
+      if (dir === 'down') px(s, hx + 1, ey + 1, PAL.halo4);
       break;
     case 'glasses':
       if (dir === 'up') break;
       rect(s, hx, ey, hw, 1, PAL.iron4);
-      rect(s, hx + 1, ey, 2, 2, mix(PAL.bone3, PAL.brine2, 0.45));
-      if (dir === 'down') rect(s, hx + hw - 3, ey, 2, 2, mix(PAL.bone3, PAL.brine2, 0.45));
+      rect(s, hx + 1, ey, 2, 1, mix(PAL.bone3, PAL.brine2, 0.45));
+      if (dir === 'down') rect(s, hx + hw - 3, ey, 2, 1, mix(PAL.bone3, PAL.brine2, 0.45));
       px(s, hx + 1, ey, PAL.bone3);
       break;
     case 'respirator':
       if (dir === 'up') break;
-      rect(s, hx + 1, top + 6, hw - 2, 3, PAL.iron2);
-      rect(s, hx + 1, top + 6, hw - 2, 1, PAL.iron4);
-      rect(s, CX - 1, top + 7, 2, 2, PAL.void1);
+      rect(s, hx + 1, top + 4, hw - 2, 3, PAL.iron2);
+      rect(s, hx + 1, top + 4, hw - 2, 1, PAL.iron4);
+      rect(s, CX - 1, top + 5, 2, 1, PAL.void1);
       break;
     case 'cap': {
       // brim on the facing side only, which is what makes a cap read as a cap
@@ -552,11 +600,11 @@ function drawAccessory(
       break;
     }
     case 'hood':
-      rect(s, hx - 1, top - 2, hw + 2, 5, PAL.iron1);
+      rect(s, hx - 1, top - 2, hw + 2, 4, PAL.iron1);
       rect(s, hx - 1, top - 2, hw + 2, 1, PAL.iron3);
-      rect(s, hx - 1, top + 3, 1, 6, PAL.iron1);
-      rect(s, hx + hw, top + 3, 1, 6, PAL.void2);
-      if (dir !== 'up') rect(s, hx, top + 3, hw, 1, PAL.void1);
+      rect(s, hx - 1, top + 2, 1, 5, PAL.iron1);
+      rect(s, hx + hw, top + 2, 1, 5, PAL.void2);
+      if (dir !== 'up') rect(s, hx, top + 2, hw, 1, PAL.void1);
       clr(s, hx - 1, top - 2);
       clr(s, hx + hw, top - 2);
       break;

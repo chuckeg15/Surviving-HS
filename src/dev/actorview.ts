@@ -12,7 +12,7 @@ import { BACKGROUNDS } from '@/data/content';
 import { PAL } from '@/art/palette';
 import { Painter } from '@/ui/painter';
 
-const S = 4;
+const S = Number(new URLSearchParams(location.search).get('s') ?? 4);
 
 function main(): void {
   const cast: { name: string; look: ActorLook }[] = [
