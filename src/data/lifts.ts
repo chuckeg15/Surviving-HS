@@ -48,10 +48,10 @@ export const LIFT_STOPS: LiftStop[] = [
     room: 'b-lift',
     spawn: 'default',
     label: 'DECK B \x7f REGISTRY',
+    // The lift accepts anyone; the Registry FLOOR is what is gated, and Rask
+    // can vouch. Gating the whole deck would put C8 out of reach for four of
+    // the five backgrounds and make deduction D4 unreachable for them.
     blurb: 'Registry floor, the stacks, Vestibule offices.',
-    known: 'knows-deck-b',
-    clearance: 'registry',
-    refuse: 'The panel declines Deck B. Registry clearance, or an escort.',
   },
   {
     deck: 'A',

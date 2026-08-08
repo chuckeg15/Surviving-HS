@@ -7,6 +7,7 @@
  */
 
 import { CLUES_D } from "@/data/deck-d";
+import { CLUES_B } from "@/data/deck-b";
 import { GameState, BackgroundId, RelationLevel, relationAtLeast } from '@/game/state';
 import { ActorLook } from '@/art/actors';
 import { PAL } from '@/art/palette';
@@ -155,6 +156,7 @@ export interface Clue {
 
 export const CLUES: Record<string, Clue> = {
   ...CLUES_D,
+  ...CLUES_B,
   'transfer-record': {
     id: 'transfer-record',
     title: 'TRANSFER RECORD',
@@ -410,6 +412,122 @@ export interface InteractDef {
 const has = (s: GameState, c: string) => clearancesOf(s).includes(c);
 
 export const INTERACTABLES: Record<string, InteractDef> = {
+  // --- Deck B -----------------------------------------------------------
+  'b-signage': {
+    id: 'b-signage',
+    label: 'Deck signage',
+    run: () => ({
+      lines: [
+        'DECK B \x7f REGISTRY \x7f BUREAU OF DEEP REGISTRY \x7f COMPUTER CORE (NO ADMITTANCE).',
+        'Below it, printed small: RECORDS ARE THE SHIP. Somebody has not scratched it out, which says something about the deck.',
+      ],
+    }),
+  },
+  'registry-desk': {
+    id: 'registry-desk',
+    label: 'Registry desk',
+    run: () => ({
+      lines: [
+        'A clerk desk, asleep. It wakes far enough to show a queue of reconciliations and nothing else.',
+        'The desks only show what they were told to show.',
+      ],
+    }),
+  },
+  'registry-audit': {
+    id: 'registry-audit',
+    label: 'Audit terminal',
+    run: (s) => {
+      if (!s.hasClue('transfer-record')) {
+        return {
+          lines: [
+            'The audit terminal wants a record identifier. You do not have one to give it.',
+          ],
+        };
+      }
+      s.findClue('registry-checksum');
+      return {
+        lines: [
+          'You give it the transfer identifier. It returns the integrity block without being asked \x7f auditing is what it is for.',
+          'The checksum class is not the one a Command terminal can write.',
+        ],
+        clue: 'registry-checksum',
+      };
+    },
+  },
+  'personnel-terminal': {
+    id: 'personnel-terminal',
+    label: 'Personnel terminal',
+    run: (s) => {
+      s.findClue('personnel-annex');
+      return {
+        lines: [
+          'Personnel. It offers you your own file first, the way these things do.',
+        ],
+        clue: 'personnel-annex',
+      };
+    },
+  },
+  'the-stacks': {
+    id: 'the-stacks',
+    label: 'Tessera rack',
+    run: (s) => {
+      // Deliberately the same text whether or not the player has worked out
+      // what these are. The room does not change. The player does.
+      const lines = [
+        'Ceramic tile, racked edge-on, thousands to a bay. Each one is warm, very slightly, which means each one is running.',
+        'They are indexed by a serial and nothing else. No names anywhere in the room.',
+      ];
+      if (s.hasDeduction('D6') || s.hasClue('tessera-serial')) {
+        lines.push('You know what a cast serial looks like now. You are standing in a room with ninety thousand people in it.');
+      }
+      return { lines };
+    },
+  },
+  'stacks-index': {
+    id: 'stacks-index',
+    label: 'Index console',
+    run: (s) => {
+      if (!s.hasClue('tessera-serial')) {
+        return { lines: ['A dead index console. It asks for a serial prefix. You do not have one.'] };
+      }
+      s.setFlag('checked-kh-prefix', true);
+      return {
+        lines: [
+          'You give it the prefix you read off the sentinel: KH-11.',
+          'MATCHES: 91,400. RANGE: KH-00001 THROUGH KH-91400. CONTIGUOUS.',
+          'Contiguous. Not collected over years from hospitals and accidents. Taken all at once, in order.',
+        ],
+        flag: 'knows-ledger-size',
+      };
+    },
+  },
+  'rask-log': {
+    id: 'rask-log',
+    label: "Rask's log",
+    run: (s) => {
+      if (!s.has('rask-confirmed-mass')) {
+        return { lines: ['A research log, open, in a hand that does not abbreviate. You should ask him before reading it.'] };
+      }
+      return {
+        lines: [
+          'Four entries, four weeks running, each one a variation on the same sentence:',
+          '"Trim solution again inconsistent with declared keel mass. Difference 1,710 t. Reported. No response."',
+          'The fourth ends: "I will keep writing these down."',
+        ],
+      };
+    },
+  },
+  'rask-shelves': {
+    id: 'rask-shelves',
+    label: 'Shelves',
+    run: () => ({
+      lines: [
+        'Reference spines, a broken loom projector, and a mug with a Vestibule crest worn half off.',
+        'Nothing here is sealed. It is the only unsealed room on the deck.',
+      ],
+    }),
+  },
+
   // --- Deck D -----------------------------------------------------------
   'd-signage': {
     id: 'd-signage',

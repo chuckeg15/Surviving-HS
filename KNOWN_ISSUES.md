@@ -94,6 +94,18 @@ Still below the bar:
 - Portrait hair still reads slightly helmet-like on the short styles; the
   lengths (long/bob/braids) came out better than the crops.
 
+## Decks built
+
+Deck C (habitation, 6 rooms), Deck D (medical, 4 rooms) and Deck B (registry,
+4 rooms) are walkable, connected by the spine lift. That is 14 rooms and 9
+NPCs on schedules, and it completes Chapter One's clue set: C8
+(registry-checksum) and C12 (personnel-annex) exist, so deduction D4 is
+reachable and the Captain red herring is disprovable as designed.
+
+Decks A, E and F are not built. Their lift stops are gated behind flags that
+nothing sets, because listing a stop that would crash is worse than not
+listing it.
+
 ## Combat balance
 
 A measured pass has been run (`node tools/balance.mjs`, see COMBAT_DESIGN.md).

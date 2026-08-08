@@ -28,7 +28,7 @@ const PLATE = ['floor.plate.a', 'floor.plate.b', 'floor.plate.c'];
 // =====================================================================
 const dLift: RoomDef = {
   id: 'd-lift',
-  name: 'LIFT LANDING \x7f DECK D',
+  name: 'LIFT LANDING \x7f MEDICAL',
   deck: 'D',
   department: 'medical',
   ambient: AMBIENT.cool,
@@ -125,7 +125,7 @@ const dWard: RoomDef = {
   layout: [
     '########################',
     '########################',
-    '##G##############G#####',
+    '##G##############G######',
     '#......................#',
     '#.B.B.B.B....B.B.B.B...#',
     '#......................#',

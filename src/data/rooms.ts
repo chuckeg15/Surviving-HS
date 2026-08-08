@@ -9,6 +9,7 @@
 
 import { AMBIENT, RoomDef } from '@/world/map';
 import { ROOMS_D } from '@/data/deck-d';
+import { ROOMS_B } from '@/data/deck-b';
 import { PAL } from '@/art/palette';
 
 const CARPET = ['floor.carpet.a', 'floor.carpet.b', 'floor.carpet.worn'];
@@ -279,6 +280,7 @@ const spineDuct: RoomDef = {
 
 export const ROOMS: Record<string, RoomDef> = {
   ...ROOMS_D,
+  ...ROOMS_B,
   'c-bunk': cBunk,
   'c-corridor': cCorridor,
   'c-commons': cCommons,
