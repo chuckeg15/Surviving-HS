@@ -53,7 +53,7 @@ const bLift: RoomDef = {
   ],
   marks: {
     L: {
-      prop: 'prop.lift.panel',
+      prop: 'lift.panel',
       solid: true,
       interact: 'lift-panel',
       light: { r: 20, color: PAL.halo3, i: 0.3 },
