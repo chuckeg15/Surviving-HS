@@ -20,6 +20,10 @@ import { PAL } from '@/art/palette';
 import { getActorSheet, type ActorLook } from '@/art/actors';
 import { writeSlot, AUTOSAVE_SLOT } from '@/game/save';
 
+/** Set by the explore scene so modal scenes can move the world without
+ *  reaching into it. */
+export type Traveller = (room: string, spawn: string) => void;
+
 export interface Scene {
   readonly id: string;
   /** Scenes below a modal scene keep drawing but stop updating. */
@@ -141,6 +145,13 @@ export class App {
       this.replace(to);
       this.fadeTo(0, color);
     });
+  }
+
+  /** Installed by the explore scene; the lift and map screens call it. */
+  traveller: Traveller | null = null;
+
+  travelTo(room: string, spawn: string): void {
+    this.traveller?.(room, spawn);
   }
 
   fadeTo(target: number, color = '#04070a', cb?: () => void): void {

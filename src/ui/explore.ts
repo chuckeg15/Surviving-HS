@@ -25,6 +25,7 @@ import { ROOMS } from '@/data/rooms';
 import { NPCS, npcRoom } from '@/data/npcs';
 import { INTERACTABLES, CLUES, clearancesOf } from '@/data/content';
 import { DialogueRunner, TONE_LABEL } from '@/game/dialogue';
+import { LiftScene } from '@/ui/lift';
 import { audio } from '@/core/audio';
 import { settings, TEXT_CPS } from '@/core/settings';
 import { getTileAtlas, TILE_PX } from '@/art/tiles';
@@ -71,6 +72,9 @@ export class ExploreScene implements Scene {
   private doorCooldown: { x: number; y: number } | null = null;
 
   enter(app: App): void {
+    // Modal scenes (lift, ship map) move the player through this, so they never
+    // need to know how rooms are loaded.
+    app.traveller = (room, spawn) => this.loadRoom(app, room, spawn);
     this.loadRoom(app, app.state.room, null);
   }
 
@@ -291,6 +295,10 @@ export class ExploreScene implements Scene {
       return;
     }
     audio.sfx(it.id.includes('terminal') || it.id.includes('muster') ? 'terminal.on' : 'ui.select');
+    if (res.flag === 'open-lift') {
+      app.push(new LiftScene(this.room.def.id));
+      return;
+    }
     if (res.flag === 'enter-duct') {
       app.fadeTo(1, '#04070a', () => {
         this.loadRoom(app, 'spine-duct', 'default');

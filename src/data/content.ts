@@ -398,6 +398,13 @@ export interface InteractDef {
 const has = (s: GameState, c: string) => clearancesOf(s).includes(c);
 
 export const INTERACTABLES: Record<string, InteractDef> = {
+  'lift-panel': {
+    id: 'lift-panel',
+    label: 'Lift panel',
+    // Opens the stop picker. The panel itself says nothing useful, on purpose:
+    // what the player learns is which decks are listed and which are sealed.
+    run: () => ({ lines: [], flag: 'open-lift' }),
+  },
   'player-bunk': {
     id: 'player-bunk',
     label: 'Your bunk',
