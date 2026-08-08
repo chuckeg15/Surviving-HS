@@ -76,6 +76,11 @@ export class Input {
   private padIndex: number | null = null;
   private padPrev = new Set<Action>();
   private captureFn: ((code: string) => void) | null = null;
+  /** Actions held by on-screen touch controls, kept apart from real keys so a
+   *  lifted finger cannot clear a key the player is still holding. */
+  private virtual = new Set<Action>();
+  /** True once any touch happens: the game uses this to show touch controls. */
+  touchSeen = false;
   private el: HTMLElement | Window;
   /** True once the player has produced any input; used to unlock audio. */
   gestured = false;
@@ -248,6 +253,31 @@ export class Input {
     this.prevHeld = new Set(this.held);
     this.latchedPress.clear();
     this.latchedRelease.clear();
+  }
+
+  /** Pressed or released by an on-screen control. */
+  setVirtual(a: Action, on: boolean): void {
+    this.touchSeen = true;
+    this.gestured = true;
+    if (on) {
+      if (!this.virtual.has(a)) {
+        this.virtual.add(a);
+        this.held.add(a);
+        this.repeatTimer.set(a, REPEAT_DELAY);
+      }
+    } else {
+      this.virtual.delete(a);
+      this.held.delete(a);
+      this.repeatTimer.delete(a);
+    }
+  }
+
+  clearVirtual(): void {
+    for (const a of this.virtual) {
+      this.held.delete(a);
+      this.repeatTimer.delete(a);
+    }
+    this.virtual.clear();
   }
 
   down(a: Action): boolean {

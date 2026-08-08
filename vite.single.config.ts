@@ -18,7 +18,11 @@ export default defineConfig({
     cssCodeSplit: false,
     reportCompressedSize: false,
     rollupOptions: {
-      output: { inlineDynamicImports: true, entryFileNames: 'game.js' },
+      // IIFE, not ESM. A <script type="module"> loaded from file:// carries a
+      // null origin and browsers treat it far more strictly than a classic
+      // script - which is how the downloaded copy ended up doing nothing on a
+      // phone. A plain IIFE has none of that machinery to trip over.
+      output: { format: 'iife', inlineDynamicImports: true, entryFileNames: 'game.js' },
     },
   },
 });

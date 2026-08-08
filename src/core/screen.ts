@@ -27,7 +27,14 @@ export class Screen {
   readonly ui: HTMLCanvasElement;
   readonly uiCtx: CanvasRenderingContext2D;
   private frame: HTMLElement;
-  private layout: ScreenLayout = { scale: 1, cssW: VW, cssH: VH };
+  /**
+   * Deliberately impossible starting values. If this held the plausible
+   * {scale:1, VW, VH}, the first relayout on a display that computes exactly
+   * scale 1 would match it, take the early return, and never write the frame's
+   * CSS size — leaving a 0x0 frame with a perfectly running game inside it.
+   * That is precisely what happened on phones, where the scale IS 1.
+   */
+  private layout: ScreenLayout = { scale: 0, cssW: 0, cssH: 0 };
   private listeners = new Set<(l: ScreenLayout) => void>();
   private ro: ResizeObserver | null = null;
   private onWinResize = () => this.relayout();
@@ -67,15 +74,16 @@ export class Screen {
     const scale = Math.max(1, Math.floor(Math.min(w / VW, h / VH)));
     const cssW = VW * scale;
     const cssH = VH * scale;
-    if (
+    const unchanged =
       scale === this.layout.scale &&
       cssW === this.layout.cssW &&
-      cssH === this.layout.cssH
-    )
-      return;
+      cssH === this.layout.cssH;
+    // Always write the size; only skip *notifying* when nothing moved. Making
+    // the style write conditional is what allowed a 0x0 frame to persist.
     this.layout = { scale, cssW, cssH };
     this.frame.style.width = cssW + 'px';
     this.frame.style.height = cssH + 'px';
+    if (unchanged) return;
     for (const fn of this.listeners) fn(this.layout);
   }
 

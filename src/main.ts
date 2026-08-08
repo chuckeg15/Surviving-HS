@@ -9,6 +9,7 @@
 import { App } from '@/game/app';
 import { TitleScene, CharCreateScene, JournalScene, SettingsScene } from '@/ui/menus';
 import { GameState } from '@/game/state';
+import { TouchControls } from '@/ui/touch';
 import { BACKGROUNDS, CLUES } from '@/data/content';
 import { audio } from '@/core/audio';
 import { getTileAtlas } from '@/art/tiles';
@@ -28,6 +29,11 @@ async function boot(): Promise<void> {
   app.start();
   bootEl?.classList.add('gone');
   setTimeout(() => bootEl?.remove(), 500);
+
+  // On-screen controls. Hidden until a real touch happens, so desktop is
+  // untouched; without them the game is unplayable on a phone.
+  const touch = new TouchControls(app.input);
+  void touch;
 
   // --- debug / harness hook -------------------------------------------
   const dbg = {

@@ -23,7 +23,38 @@ html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#0508
 </style>
 ${stage}
 ${boot}
-<script type="module">
+<script>
+(function () {
+  // A blank screen with no explanation is the worst possible failure. Anything
+  // that stops the game booting says so, in words, on the page.
+  function fail(msg) {
+    var b = document.getElementById('boot');
+    if (!b) { b = document.createElement('div'); b.id = 'boot'; document.body.appendChild(b); }
+    b.className = '';
+    b.style.cssText = 'position:fixed;inset:0;z-index:99;display:grid;place-items:center;' +
+      'background:#05080a;color:#c6d6cf;font:13px/1.6 ui-monospace,monospace;padding:24px;text-align:center';
+    b.innerHTML = '<div style="max-width:36em"><p style="color:#ab2a28;letter-spacing:.2em;' +
+      'text-transform:uppercase;font-size:11px;margin:0 0 14px">Candlewake could not start</p>' +
+      '<p style="margin:0 0 12px">' + msg + '</p>' +
+      '<p style="color:#55747f;font-size:11px;margin:0">The game needs a current browser with ' +
+      'WebGL enabled. On a phone, open this file in Chrome or Firefox rather than a file-manager ' +
+      'preview - previews usually cannot run WebGL.</p></div>';
+  }
+  try {
+    var c = document.createElement('canvas');
+    var gl = c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl');
+    if (!gl) { fail('This browser reports no WebGL support, which the renderer requires.'); return; }
+  } catch (e) { fail('WebGL could not be initialised: ' + e.message); return; }
+  window.addEventListener('error', function (e) {
+    if (!window.__candlewake) fail('A script error stopped startup: ' + (e.message || 'unknown'));
+  });
+  setTimeout(function () {
+    if (!window.__candlewake) fail('Startup did not complete. If you opened this from a file ' +
+      'manager, try opening it directly in a browser instead.');
+  }, 9000);
+})();
+</script>
+<script>
 ${js}
 </script>
 `;
