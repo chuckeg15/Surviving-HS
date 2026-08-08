@@ -135,8 +135,14 @@ it: the chapter ending, and then all three new encounters. Both were caught by g
 That check is now a tool: `npm run test:reach`. It reports one genuine finding
 and no false positives.
 
-`ivo-escalation` is still unreachable - it needs the duct-forcing path from
-CANON §6, which is not built.
+`npm run test:reach` now audits four categories - encounters, clues, NPC
+placement, interactable use and room connectivity - and reports **zero**
+findings. Every encounter can be fought, every clue can be found, every NPC
+stands somewhere, every interactable is on a tile, and every room can be walked
+to from the start.
+
+All seven routes into the spine duct from CANON §6 now exist, including the
+seventh (force the wheel), which is what `ivo-escalation` was written for.
 
 ## Combat balance
 

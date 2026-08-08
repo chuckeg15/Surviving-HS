@@ -79,5 +79,78 @@ for (const id of clueIds) {
     bad++;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Orphan checks. Same failure shape as the unreachable encounters: each of
+// these is a thing that exists, is correct, and that no player can ever meet.
+// ---------------------------------------------------------------------------
+
+const mapFiles = ['data/rooms.ts', 'data/deck-b.ts', 'data/deck-d.ts', 'data/deck-e.ts'];
+const mapText = mapFiles.map((f) => text.get(path.join(SRC, f)) ?? '').join('\n');
+
+// 1. NPCs that are never placed by an `npc:` mark in any room.
+const npcIds = new Set();
+for (const f of ['data/npcs.ts', 'data/deck-b.ts', 'data/deck-d.ts', 'data/deck-e.ts']) {
+  const t = text.get(path.join(SRC, f)) ?? '';
+  for (const m of t.matchAll(/^\s{2}id: '([a-z0-9-]+)',\n\s{2}name: '[^']*',\n\s{2}role:/gm)) npcIds.add(m[1]);
+}
+for (const id of npcIds) {
+  if (!mapText.includes(`npc: '${id}'`)) {
+    console.log(`UNPLACED npc: "${id}" is never placed in any room`);
+    bad++;
+  }
+}
+
+// 2. Interactables that no room mark points at.
+const interText = text.get(path.join(SRC, 'data/content.ts')) ?? '';
+const interBlock = interText.slice(interText.indexOf('INTERACTABLES'));
+for (const m of interBlock.matchAll(/^\s{2}'([a-z0-9-]+)': \{/gm)) {
+  const id = m[1];
+  if (!mapText.includes(`interact: '${id}'`)) {
+    console.log(`UNUSED interactable: "${id}" is not on any tile`);
+    bad++;
+  }
+}
+
+// 3. Rooms not reachable by walking or by the lift from the start room.
+const roomIds = [...mapText.matchAll(/^\s{2}id: '([a-z0-9-]+)',\n\s{2}name: '[^']*',\n\s{2}deck:/gm)].map((m) => m[1]);
+const edges = new Map(roomIds.map((r) => [r, new Set()]));
+for (const f of mapFiles) {
+  const t = text.get(path.join(SRC, f)) ?? '';
+  // attribute each `to:` to the room block it sits in
+  const blocks = [...t.matchAll(/id: '([a-z0-9-]+)',\n([\s\S]*?)\n\};/g)];
+  for (const b of blocks) {
+    const from = b[1];
+    if (!edges.has(from)) continue;
+    for (const d of b[2].matchAll(/to: '([a-z0-9-]+)'/g)) edges.get(from).add(d[1]);
+  }
+}
+// lift stops are edges from anywhere with a lift panel
+const liftText = text.get(path.join(SRC, 'data/lifts.ts')) ?? '';
+const liftRooms = [...liftText.matchAll(/room: '([a-z0-9-]+)'/g)].map((m) => m[1]);
+for (const r of roomIds) {
+  if (mapText.includes(`interact: 'lift-panel'`) && edges.has(r)) {
+    // any room containing a lift panel reaches every listed stop
+  }
+}
+// Rooms entered by a code path rather than a door edge. Each needs a real
+// reason to be here; this is not a suppression list for orphans.
+const CODE_ENTERED = ['spine-duct']; // explore.ts, via the enter-duct flag
+const seen = new Set(['c-bunk', ...CODE_ENTERED]);
+const queue = ['c-bunk', ...CODE_ENTERED];
+while (queue.length) {
+  const cur = queue.shift();
+  const out = new Set(edges.get(cur) ?? []);
+  // a lift landing reaches every listed stop
+  if (liftRooms.includes(cur) || cur === 'c-corridor') for (const s of liftRooms) out.add(s);
+  for (const n of out) if (!seen.has(n)) { seen.add(n); queue.push(n); }
+}
+for (const r of roomIds) {
+  if (!seen.has(r)) {
+    console.log(`UNREACHABLE room: "${r}" cannot be walked to from the start`);
+    bad++;
+  }
+}
+
 console.log(bad ? `\n${bad} unreachable item(s)` : '\nall content is reachable from gameplay');
 process.exit(bad ? 1 : 0);

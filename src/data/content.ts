@@ -864,11 +864,28 @@ export const INTERACTABLES: Record<string, InteractDef> = {
           flag: 'duct-open',
         };
       }
+      // The seventh route from CANON section 6: force it. Deliberately gated
+      // behind having been refused once, so nobody stumbles into the loudest
+      // option in the chapter by mashing confirm at a locked door.
+      if (s.has('refused-duct')) {
+        s.suspicion += 20;
+        return {
+          lines: [
+            'You put both hands on the wheel and turn it against the lock.',
+            'The tell-tale goes from live to screaming. Petty Ivo is round the corner in four seconds, ' +
+              'and he does not draw anything, because he does not have to.',
+            'His loom is already lit.',
+          ],
+          battle: 'ivo-escalation',
+        };
+      }
+      s.setFlag('refused-duct', true);
       return {
         lines: [
           'RESTRICTED \x7f SPINE ACCESS \x7f WATCH AUTHORISATION REQUIRED',
           'The wheel is locked and the tell-tale is live. Somebody would know within the minute.',
           'There will be a way. There is always a way, and on this ship there are usually several.',
+          'You could also simply turn the wheel and let somebody know.',
         ],
       };
     },

@@ -273,7 +273,7 @@ for it is worse than useless because it reads as evidence that it works.
 |---|---|
 | `annex-admittance` | The Annex 3 lock in the recovery ward, if you touch it without medical clearance |
 | `gantry-minder` | The gantry housing in reactor control, which projects at anyone who passes |
-| `ivo-escalation` | **Still unreachable.** It needs the duct-forcing path from CANON §6, which is not yet built |
+| `ivo-escalation` | Forcing the duct wheel — the seventh route from CANON §6, gated behind having been refused once so nobody stumbles into the loudest option by mashing confirm |
 
 Every encounter id should be greppable outside `roster.ts` and `battle.ts`. If
 it is not, no player will ever see it.
