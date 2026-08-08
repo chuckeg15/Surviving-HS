@@ -42,7 +42,6 @@ export const LIFT_STOPS: LiftStop[] = [
     spawn: 'default',
     label: 'DECK D \x7f MEDICAL',
     blurb: 'Triage, ward, hydroponics beyond.',
-    known: 'knows-deck-d',
   },
   {
     deck: 'B',

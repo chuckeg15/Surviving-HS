@@ -339,6 +339,20 @@ export class GameState {
   // --- time -------------------------------------------------------------
 
   /** Ship-time label, e.g. "04:20". Chapter One runs 02:00 to 08:00. */
+  /**
+   * Adds a clearance the player was not born with. Stored as a comma string
+   * because clearancesOf() already reads that shape; keeping one representation
+   * avoids two sources of truth for who may open what.
+   */
+  grantClearance(c: string): void {
+    const cur = ((this.flag('granted-clearances') as string) ?? '')
+      .split(',')
+      .filter(Boolean);
+    if (cur.includes(c)) return;
+    cur.push(c);
+    this.setFlag('granted-clearances', cur.join(','));
+  }
+
   clock(): string {
     const total = 2 * 60 + this.timeBlock * 20;
     const h = Math.floor(total / 60) % 24;

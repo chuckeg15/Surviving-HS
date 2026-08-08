@@ -6,6 +6,7 @@
  * See MYSTERY_STRUCTURE.md and docs/CANON.md §6.
  */
 
+import { CLUES_D } from "@/data/deck-d";
 import { GameState, BackgroundId, RelationLevel, relationAtLeast } from '@/game/state';
 import { ActorLook } from '@/art/actors';
 import { PAL } from '@/art/palette';
@@ -153,6 +154,7 @@ export interface Clue {
 }
 
 export const CLUES: Record<string, Clue> = {
+  ...CLUES_D,
   'transfer-record': {
     id: 'transfer-record',
     title: 'TRANSFER RECORD',
@@ -287,6 +289,16 @@ export interface Deduction {
 }
 
 export const DEDUCTIONS: Record<string, Deduction> = {
+  D5: {
+    id: 'D5',
+    claim: 'Hessa is in Medical Annex 3.',
+    requires: [
+      ['cradle-log', 'consent-form'],
+      ['cradle-log', 'trave-flask'],
+    ],
+    conclusion:
+      'A cradle booked by Registry, a patient field left blank, and a consent signed in a hand that closes its Q. She is four days deep and sixty-one per cent gone.',
+  },
   D1: {
     id: 'D1',
     claim: 'Hessa never transferred.',
@@ -398,6 +410,123 @@ export interface InteractDef {
 const has = (s: GameState, c: string) => clearancesOf(s).includes(c);
 
 export const INTERACTABLES: Record<string, InteractDef> = {
+  // --- Deck D -----------------------------------------------------------
+  'd-signage': {
+    id: 'd-signage',
+    label: 'Deck signage',
+    run: () => ({
+      lines: [
+        'DECK D \x7f MEDICAL. TRIAGE \x7f WARD \x7f ANNEX 1-3 \x7f HYDROPONICS (SEALED).',
+        'Someone has scratched a tally beside ANNEX 3 and stopped at eleven.',
+      ],
+    }),
+  },
+  'triage-bed': {
+    id: 'triage-bed',
+    label: 'Triage bed',
+    run: () => ({ lines: ['Made, and cold. The paper on it has not been changed because it has not been used.'] }),
+  },
+  'ward-bed': {
+    id: 'ward-bed',
+    label: 'Ward bed',
+    run: () => ({
+      lines: [
+        'Made with the corners folded the way the service teaches and nobody keeps up.',
+        'Fourteen of these. Two hundred and twelve people awake on this hull.',
+      ],
+    }),
+  },
+  'ward-plant': {
+    id: 'ward-plant',
+    label: 'Planter',
+    run: () => ({
+      lines: [
+        'A hydroponics offcut in a steel pot, kept alive past its purpose.',
+        'The label says BEZHI. Someone in the galley is watering it on their own time.',
+      ],
+    }),
+  },
+  'med-supply': {
+    id: 'med-supply',
+    label: 'Supply cart',
+    run: (s) => {
+      if (has(s, 'medical') && !s.hasItem('hazard-tag')) {
+        s.addItem('hazard-tag');
+        return {
+          lines: [
+            'Consumables, sealed. A pad of hazard-quarantine tags sits on top, unnumbered.',
+            'You take one. Nobody counts these.',
+          ],
+          toast: 'Hazard tag taken',
+        };
+      }
+      return { lines: ['Consumables, sealed. The seal is Registry-side and you are not.'] };
+    },
+  },
+  'cradle-log-terminal': {
+    id: 'cradle-log-terminal',
+    label: 'Duty terminal',
+    run: (s) => {
+      s.setFlag('knows-annex', true);
+      s.findClue('cradle-log');
+      return {
+        lines: [
+          'The duty terminal wakes without asking who you are. Medical never locks the duty screen; there is never anyone else on the deck.',
+          'One procedure is running.',
+        ],
+        clue: 'cradle-log',
+      };
+    },
+  },
+  'consent-file': {
+    id: 'consent-file',
+    label: 'Consent file',
+    run: (s) => {
+      if (!s.hasClue('cradle-log')) {
+        return { lines: ['A drawer of signed consents, filed by date. Hundreds. You would need to know which one to pull.'] };
+      }
+      s.findClue('consent-form');
+      return {
+        lines: [
+          'You pull the consent that matches the running procedure.',
+          'It is signed H. QUILL. You have watched her chalk that name on a duct board a hundred times.',
+        ],
+        clue: 'consent-form',
+      };
+    },
+  },
+  'annex-terminal': {
+    id: 'annex-terminal',
+    label: 'Annex terminal',
+    run: (s) => {
+      s.findClue('cradle-log');
+      return {
+        lines: [
+          'ANNEX 3 \x7f CRADLE 1. DEPTH 4 DAYS. ELAPSED 61%.',
+          'BOOKED: REGISTRY. AUTHORITY FIELD: [not displayed at this terminal].',
+        ],
+        clue: 'cradle-log',
+      };
+    },
+  },
+  'the-cradle': {
+    id: 'the-cradle',
+    label: 'Smoothing cradle',
+    run: (s) => {
+      s.setFlag('saw-hessa', true);
+      s.note('Found Hessa Quill in a smoothing cradle in Medical Annex 3.');
+      return {
+        lines: [
+          'The cradle is running. Under the hood the light is violet and completely steady.',
+          'Hessa Quill is in it. Her hands are folded the way a technician folds them, which means somebody folded them.',
+          'She is breathing. The counter above her says 61%.',
+          'There is no alarm. Nothing here is an emergency. Everything here is on a form.',
+        ],
+        flag: 'found-hessa',
+      };
+    },
+  },
+
   'lift-panel': {
     id: 'lift-panel',
     label: 'Lift panel',

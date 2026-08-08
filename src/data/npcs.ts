@@ -819,7 +819,9 @@ const ivo: NpcDef = {
   },
 };
 
-export const NPCS: Record<string, NpcDef> = { stray, fen, cael, trave, ivo };
+import { NPCS_D } from '@/data/deck-d';
+
+export const NPCS: Record<string, NpcDef> = { stray, fen, cael, trave, ivo, ...NPCS_D };
 
 /** Where an NPC is at the current ship-time. */
 export function npcRoom(def: NpcDef, s: GameState): string {
