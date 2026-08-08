@@ -158,7 +158,7 @@ Three findings, in order of severity:
 | Dominant abilities | 4 | **1** |
 | Average battle length | ~4 turns | **8-11 turns** |
 | Boss win rate, greedy | 40% | **43%** |
-| Boss win rate, considered | 40% | **53%** |
+| Boss win rate, considered | 40% | **66%** |
 | Boss win rate, random | 1% | **24%** |
 | Tutorial win rate, considered | 100% | **100%** |
 
@@ -179,8 +179,11 @@ coherence and passes the turn. Both the player and the enemy AI fall back to it.
 
 Stated plainly, because the numbers say so:
 
-- **`lampwright` still loses the boss fight 100% of the time.** It survives
-  12.4 turns and cannot close. A sustain kit that cannot win is not a build.
+- ~~`lampwright` loses the boss 100% of the time~~ **fixed.** The cause was
+  not sustain but the coherence economy: its cheapest strike cost 3 against +1
+  regeneration, so at steady state it attacked once every three turns - about
+  6.7 damage into a 106 integrity boss. Dropping `suture` to cost 2 took it to
+  **63%**, and pulled the overall boss rate to **66%**, inside the target band.
 - **`truncheon` is still dominant at 75%**, and its `restrain` is dead at 0%.
 - **`tallyman/audit` is dead at 0%.**
 - **Boss sits at 53% for a considered player**, just under the 55-80% target.

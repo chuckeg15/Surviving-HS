@@ -164,7 +164,7 @@ const ABILITIES: Record<string, Ability> = {
     inflict: { status: 'frayed', turns: 3, chance: 0.5 },
   }),
   'traction': A({
-    id: 'traction', name: 'TRACTION', kind: 'control', aspect: 'kinetic', cost: 3, power: 11,
+    id: 'traction', name: 'TRACTION', kind: 'strike', aspect: 'kinetic', cost: 3, power: 11,
     desc: 'Sets the projection against itself. Anchored.',
     inflict: { status: 'anchored', turns: 3, chance: 0.9 },
   }),
@@ -186,7 +186,7 @@ const ABILITIES: Record<string, Ability> = {
   'lamplight': A({
     id: 'lamplight', name: 'LAMPLIGHT', kind: 'mend', aspect: 'field', cost: 2, power: 0,
     desc: 'Restores integrity. Cheap, steady, never enough on its own.',
-    selfBuff: { integrity: 14 },
+    selfBuff: { integrity: 19 },
   }),
   'clean-field': A({
     id: 'clean-field', name: 'CLEAN FIELD', kind: 'mend', aspect: 'field', cost: 2, power: 0,
@@ -194,7 +194,7 @@ const ABILITIES: Record<string, Ability> = {
     selfBuff: { coherence: 2 },
   }),
   'suture': A({
-    id: 'suture', name: 'SUTURE', kind: 'strike', aspect: 'field', cost: 3, power: 12,
+    id: 'suture', name: 'SUTURE', kind: 'strike', aspect: 'field', cost: 2, power: 12,
     desc: 'A field seam drawn through the target. Leaves bleedover.',
     inflict: { status: 'bleedover', turns: 2, chance: 0.75 },
   }),
@@ -274,7 +274,7 @@ export const TESSERAE: Record<string, RevenantDef> = {
   },
   lampwright: {
     id: 'lampwright', name: 'LAMPWRIGHT', castOf: 'Sera Ondt, medtech, d. 2230',
-    serial: 'LT9-0219', aspect: 'field', integrity: 85, coherence: 12, grip: 7,
+    serial: 'LT9-0219', aspect: 'field', integrity: 92, coherence: 13, grip: 7,
     abilities: [ABILITIES.suture, ABILITIES.lamplight, ABILITIES['traction'], ABILITIES['gasket-read']],
     reading: 'A medtech. Keeps trying to stabilise things, including its opponent.',
   },

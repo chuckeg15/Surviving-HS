@@ -104,11 +104,11 @@ regenerates on turn advance, so a player with nothing affordable could press
 confirm forever.
 
 Still wrong, per the numbers:
-- `lampwright` loses the Chapter One boss 100% of the time - it survives 12
-  turns and cannot close.
+- ~~`lampwright` loses the boss 100% of the time~~ fixed: its cheapest strike
+  cost more than its coherence regeneration could sustain. Now 63%.
 - `truncheon` remains dominant at 75%; its `restrain` is dead at 0%.
 - `tallyman/audit` is dead at 0%.
-- Boss win rate is 53% for a considered player, just under the 55-80% target.
+- Boss win rate is 66% for a considered player, inside the 55-80% target.
 - A control-first player wins 5% against the boss. Control is competitive with
   nothing.
 - Every one of these figures is simulated. No human has played a battle.
