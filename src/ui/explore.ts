@@ -27,6 +27,7 @@ import { INTERACTABLES, CLUES, clearancesOf } from '@/data/content';
 import { DialogueRunner, TONE_LABEL } from '@/game/dialogue';
 import { LiftScene } from '@/ui/lift';
 import { ShipMapScene } from '@/ui/shipmap';
+import { ChapterDecisionScene } from '@/ui/chapter';
 import { audio } from '@/core/audio';
 import { settings, TEXT_CPS } from '@/core/settings';
 import { getTileAtlas, TILE_PX } from '@/art/tiles';
@@ -301,6 +302,10 @@ export class ExploreScene implements Scene {
       return;
     }
     audio.sfx(it.id.includes('terminal') || it.id.includes('muster') ? 'terminal.on' : 'ui.select');
+    if (res.flag === 'open-chapter-decision') {
+      app.push(new ChapterDecisionScene());
+      return;
+    }
     if (res.flag === 'open-lift') {
       app.push(new LiftScene(this.room.def.id));
       return;

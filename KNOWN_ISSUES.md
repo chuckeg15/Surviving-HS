@@ -94,6 +94,20 @@ Still below the bar:
 - Portrait hair still reads slightly helmet-like on the short styles; the
   lengths (long/bob/braids) came out better than the crops.
 
+## The chapter can now be finished
+
+`ChapterEndScene` existed, with all four outcomes written and a
+what-carries-forward summary built, and **nothing in the game ever
+instantiated it** - the chapter was not completable. The missing half was the
+decision itself, now reachable from the player's bunk once they hold at least
+one deduction or four clues.
+
+All four outcomes are listed always; a gated one is greyed with the reason it
+is gated, because "you could have done this if you had proved X" is what makes
+an ending feel earned rather than arbitrary. The outcomes diverge in world
+state, not in wording - filing with Sabbat genuinely destroys unlinked
+evidence and genuinely widens access.
+
 ## Decks built
 
 Deck C (habitation, 6 rooms), Deck D (medical, 4 rooms) and Deck B (registry,

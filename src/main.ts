@@ -81,6 +81,16 @@ async function boot(): Promise<void> {
           app.replace(new ExploreScene());
           app.push(new BattleScene('registry-sentinel', app.scene!));
           break;
+        case 'chapter': {
+          const { ChapterDecisionScene } = await import('@/ui/chapter');
+          seed('c-bunk');
+          for (const id of Object.keys(CLUES).slice(0, 8)) app.state.findClue(id);
+          app.state.deductions.add('D1');
+          app.state.deductions.add('D3');
+          app.replace(new ExploreScene());
+          app.push(new ChapterDecisionScene());
+          break;
+        }
         case 'shipmap': {
           const { ShipMapScene } = await import('@/ui/shipmap');
           seed('c-commons');

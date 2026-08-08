@@ -655,12 +655,29 @@ export const INTERACTABLES: Record<string, InteractDef> = {
   'player-bunk': {
     id: 'player-bunk',
     label: 'Your bunk',
-    run: () => ({
-      lines: [
-        'Your bunk. The blanket is still turned back from when the muster tone woke you.',
-        'Above it, someone before you scratched a tally into the paint and stopped at nineteen.',
-      ],
-    }),
+    // Ending the watch here is the chapter's decision point. It only offers
+    // itself once the player has something to decide WITH; before that it is
+    // just a bunk, and saying "you have nothing yet" is a better prompt than
+    // an empty menu.
+    run: (s) => {
+      const ready = s.deductions.size > 0 || s.foundClues().length >= 4;
+      if (!ready) {
+        return {
+          lines: [
+            'Your bunk. The blanket is still turned back from when the muster tone woke you.',
+            'Above it, someone before you scratched a tally into the paint and stopped at nineteen.',
+            'You could lie down. You would only stare at it.',
+          ],
+        };
+      }
+      return {
+        lines: [
+          'Your bunk. Third watch ends at 08:00 whether you have finished or not.',
+          'You could end it here \x7f decide what to do with what you have.',
+        ],
+        flag: 'open-chapter-decision',
+      };
+    },
   },
   'berth-notice': {
     id: 'berth-notice',
