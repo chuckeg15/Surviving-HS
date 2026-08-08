@@ -265,7 +265,11 @@ const ashkar: NpcDef = {
   name: 'DR. ASHKAR',
   role: 'Ship physician',
   look: look({ hair: 'bob', hairColor: PAL.bone0, skin: 2, accessory: 'glasses', frame: 'slight' }),
-  schedule: ['d-triage', 'd-triage', 'd-triage', 'd-ward', 'd-triage', 'd-triage'],
+  schedule: [
+    'd-triage', 'd-triage', 'd-triage', 'd-ward',
+    'd-triage', 'd-triage', 'd-ward', 'd-triage',
+    'd-triage', 'd-ward', 'd-triage', 'd-triage',
+  ],
   post: {
     'd-triage': [13, 4],
     'd-ward': [11, 6],
@@ -484,7 +488,11 @@ const corrow: NpcDef = {
   name: 'MEDTECH CORROW',
   role: 'Medical technician',
   look: look({ hair: 'shaved', skin: 4, uniform: 'medical', accent: PAL.moss3, frame: 'broad' }),
-  schedule: ['d-triage', 'd-ward', 'd-triage', 'd-triage', 'd-ward', 'd-triage'],
+  schedule: [
+    'd-triage', 'd-ward', 'd-triage', 'd-triage',
+    'd-ward', 'd-triage', 'd-triage', 'd-ward',
+    'd-triage', 'd-triage', 'd-ward', 'd-triage',
+  ],
   post: { 'd-triage': [17, 10], 'd-ward': [6, 6] },
   dialogue: {
     entry: (s) => (s.has('knows-annex') ? 'annexTalk' : 'idle'),

@@ -24,8 +24,14 @@ export interface LiftStop {
   known?: string;
   /** Clearance required to travel. Undefined = open. */
   clearance?: string;
-  /** Shown when refused. Must say what would fix it. */
-  refuse?: string;
+  /**
+   * Shown when refused. Must say what would fix it, or \x7f when nothing
+   * will \x7f say clearly that this is a decision about the player rather than
+   * a locked door. A function, because the same stop refuses for different
+   * reasons at different points in the story, and "sealed for the burn" is a
+   * lie once the burn is over.
+   */
+  refuse?: (has: (flag: string) => boolean) => string;
 }
 
 export const LIFT_STOPS: LiftStop[] = [
@@ -68,7 +74,11 @@ export const LIFT_STOPS: LiftStop[] = [
     blurb: 'Sealed for the duration of the burn.',
     known: 'knows-deck-a',
     clearance: 'command',
-    refuse: 'Deck A is sealed. The panel does not say by whose order.',
+    refuse: (has) =>
+      has('watch-listed')
+        ? 'The panel reads your tessera, holds it a moment longer than it needs to, ' +
+          'and returns to the deck list without comment. Someone has written you down.'
+        : 'Deck A is sealed. The panel does not say by whose order.',
   },
 ];
 

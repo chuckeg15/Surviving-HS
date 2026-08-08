@@ -22,32 +22,29 @@ captured and inspected:
 - Pause, settings (16 options, all functional), full remapping
 - 1 draw call per frame; no page errors across the whole playtest
 
-## Scope: this is Chapter One, and not all of it
+## Scope: this is Chapter One, and the front of Chapter Two
 
-**The largest honest gap.** `docs/CANON.md` describes a whole ship and nine
-ending families. What exists is one deck and the front half of Chapter One.
+`docs/CANON.md` describes a whole ship and nine ending families.
 
-Specifically **not built**:
+Built and connected: Decks A, B, C, D and E — 23 rooms — plus the two spine
+crawls, joined by the lift. 11 crew on live schedules. Chapter One is
+completable, all four outcomes diverge in world state, and each opens a
+different route onto Deck A.
 
-- The chapter-ending decision itself. `ChapterEndScene` exists and renders a
-  consequence summary, but nothing currently routes the player into it — the
-  four Chapter One outcomes (O1–O4) are designed and flagged for in state, but
-  the Sabbat/Stray/Trave confrontation scenes that trigger them are not written.
-  **The chapter cannot currently be completed.**
-- Decks A, B, D, E, F. Medical Annex 3 — where Hessa actually is — is referenced
-  throughout and is not a visitable room.
-- Registrar Sabbat, Dr. Ashkar, Tibold Rask and Captain Onwe have no dialogue
-  trees. Sabbat in particular is load-bearing for three of the four outcomes.
-- Clues C9 (`cradle-log`), C10 (`consent-form`) and C12 (`personnel-annex`) are
-  written and in the tables but have no location that grants them, because their
-  rooms do not exist. The content validator reports these as warnings by design.
-  Deduction D5 ("Hessa is in Medical Annex 3") is therefore unreachable and has
-  been left out of the shipped deduction table.
-- Quests are tracked by the state layer but only one (`find-hessa`) is started,
-  and it has no stages. The seven-solution "Hold Your Breath" duct problem is
-  implemented in the interactable (all seven paths are real code) but only three
-  of them are currently reachable, because the others depend on rooms or NPCs
-  that do not exist yet.
+Still **not built**:
+
+- Deck F.
+- Chapter Two beyond its threshold. The routes onto Deck A exist and the deck
+  has real mystery payload on it, but the chapter has no arc of its own yet.
+- The nine ending families. `ENDING_MATRIX.md` designs them; only the four
+  Chapter One outcomes are implemented.
+- Quest stages. Quests are tracked by the state layer and `find-hessa` is the
+  only one started; it has no stages.
+- Four of the seven "Hold Your Breath" duct solutions are real code that no
+  reachable room or NPC currently triggers.
+- Faction reputation and `suspicion` are both tracked and adjusted, and nothing
+  reads either of them.
+- Inventory and equipment have a data layer and no interface.
 
 ## Audio is measured, but unheard
 
@@ -71,28 +68,43 @@ claimed until it is.
 
 ## Character sprites
 
-Rebuilt against a reference bar of top-tier handheld-RPG overworld sprites.
-What changed: chibi proportions (head ~40% of figure height, since a
-naturalistic head at a 16px cell is three pixels across and cannot hold an eye,
-a hairline and a silhouette at once), a hard black rim including diagonals,
-three-tone shading per material, hairlines with temples and partings instead of
-a flat cap, full hair coverage on the back of the head, arms given their own
-value so the upper body is not one slab, and a walk cycle with a real stride
-(trailing leg a pixel shorter, both shifting outward).
+Re-proportioned away from the chibi build. The head was 10 of the 22 rows the
+figure occupies and 10px wide against an 8px torso — wider than the shoulders,
+which is what reads as a bobblehead. The rule now is that the head is never
+wider than the shoulder span: 7 rows of 20, head width 7–8 against a span of
+bodyW + 4.
+
+The smaller head exposed how flat the rest of the figure was, so four things
+changed with it: trousers and boots pushed a clear step below the tunic (they
+shared a value, which fused torso and legs into one slab with no waist),
+sloped shoulders and a shadowed hem, profile legs offset by a pixel even when
+standing (perfectly aligned legs in profile read as a skirt), and back-of-head
+hair that follows the skull and reaches the nape instead of being a
+full-width brick that left a bald patch when the sprite turned around.
+
+The face was simplified rather than detailed. Four rows can hold eyes and a
+mouth; the brow band, nose and cheek pixels crammed in alongside them turned it
+to mud.
+
+Portraits were rebuilt on the same pass — see the skin-ramp bug below, which
+was the larger problem. The jaw tapered to a near point and was shaded dark, so
+it ran straight into the neck and the lower half of every bust read as one long
+wedge; the skull is now an explicit per-row silhouette that stops short of a
+point and keeps the chin lit. Shoulders were raised and widened to fill the
+frame and the neck cut to three visible rows.
+
+`topknot` was drawn at `headTop - 8`, entirely off the top of the canvas: the
+style was selectable in character creation and rendered nothing at all. `wave`
+was two stray highlight pixels and was indistinguishable from `crop`.
+
+Review pages: `/actors.html` (every facing and pose, `?s=` for 1x to 14x) and
+`/portraits.html` (all nine hair styles across three skin tones).
 
 Still below the bar:
 - The defeated pose reads as a slab rather than a fallen person.
-- The hurt pose is a 2px shift; there is no genuine flinch drawing.
-- The `act` (interacting) pose is subtle at 1x.
-- Side-view figures are narrow and carry less identity than front-facing ones.
-- ~~Portraits were not reworked~~ — rebuilt. They now carry a tapered jaw,
-  eyes with a lash line, sclera, iris, pupil and a single catchlight, a
-  modelled nose, a neck the head actually sits on, an opening collar, and hair
-  with volume and a real hairline. Previously the face was a rounded brick with
-  two flat bars for eyes and a slab of hair on top — less structure than the
-  16x24 world sprite beside it, despite having five times the pixels.
-- Portrait hair still reads slightly helmet-like on the short styles; the
-  lengths (long/bob/braids) came out better than the crops.
+- The hurt pose is a head offset on its own layer; it is a flinch, but a small one.
+- Side-view figures carry less identity than front-facing ones.
+- Nobody has seen these at native resolution on a real display.
 
 ## The chapter can now be finished
 
@@ -116,9 +128,36 @@ is 18 rooms and 10 NPCs on schedules, and it completes Chapter One's clue set: C
 (registry-checksum) and C12 (personnel-annex) exist, so deduction D4 is
 reachable and the Captain red herring is disprovable as designed.
 
-Decks A and F are not built. Their lift stops are gated behind flags that
-nothing sets, because listing a stop that would crash is worse than not
-listing it.
+Deck A — Command is now built: the bridge, communications, the Master's day
+cabin, the strongroom, and the spine crawl underneath it. Five rooms, Captain
+Onwe with a dialogue tree, and the Command copy of Standing Order 9-B behind
+the safe.
+
+It was written whole and then left connected to nothing — 1,078 lines that no
+map, clue table, NPC roster or lift stop referenced. That is the third time
+this exact failure has happened here. It is now wired, and the wiring is
+verified rather than assumed.
+
+Deck A stays sealed for all of Chapter One, which is canon rather than pacing:
+the chapter's red herring points at the Captain, so the Captain has to be
+unreachable while it matters. It opens at the Chapter Two threshold, by a
+different route per Chapter One outcome, and `npm run test:progression`
+asserts all of it:
+
+| | listed | lift | spine | strongroom |
+|---|---|---|---|---|
+| Chapter One | no | no | no | no |
+| O1 witness escort | yes | yes | no | no |
+| O2 Board asset | yes | yes | no | **yes** |
+| O3 watch-listed | yes | **refused** | yes | no |
+| O4 unremarked | yes | yes | no | no |
+
+Under O3 the lift stop stays listed and stays refused, with a different
+refusal that says the panel read the player's tessera and thought about it —
+a route you did not know you were denied is not a route. The strongroom is
+exactly one outcome's prize; everyone else has to get the safe out of Onwe.
+
+Deck F is not built.
 
 ## The playtest is not perfectly deterministic
 
@@ -163,6 +202,26 @@ Still wrong, per the numbers:
   nothing.
 - Every one of these figures is simulated. No human has played a battle.
 
+## Two bugs that had been in the game since the first commit
+
+**Every em dash rendered as a hole.** Content files have used `\x7f` as an em
+dash from the beginning. The glyph was never drawn, and the font atlas bound
+stopped one codepoint short of it. "CREW INTAKE  RV CANDLEWAKE" was missing a
+dash, not a space, in every string in the game.
+
+**The darkest skin tone had no shading at all.** `skinTone()` clamped its
+index, so at skin 0 the base tone, the shadow and the deep shadow all resolved
+to the same colour. Dark-skinned characters rendered as a silhouette with eyes,
+in the world sprites as well as the portraits. Steps past either end of the
+ramp now continue into void or bone, and the portrait's lit edge is a specular
+mix rather than a ramp step — a ramp step is a fixed distance in the palette,
+so it lifted dark faces by almost nothing.
+
+Also: `npm test` ran `node --test tests/unit/*.test.mjs` against a directory
+that does not exist, and had therefore reported success with zero tests for the
+project's whole life. It now runs typecheck, reachability, progression and the
+playtest.
+
 ## Visual issues still open
 
 - The Loom hall (`e-loom`) is sparse below its midline and its grated floor
@@ -182,17 +241,51 @@ Found by inspecting captured frames:
 - The corridor is 31 tiles wide with a sparse middle section.
 - Wall caps and faces are marked `over`, so a character can walk behind the top
   of a wall — this is correct, but it has not been tested against every prop.
-- Combat has no background art: the two revenants stand on an empty field of
-  scanlines. The bodies themselves are drawn (open silhouettes that jitter as
-  coherence drops, with static over an unread cast), but the space they fight in
-  is blank.
+- ~~Combat has no background art~~ — built. The fight now happens inside the
+  loom's projection volume: a lattice that converges to a horizon and is
+  brightest under the two caster plates, the compartment behind it reduced to
+  silhouetted machinery and one conduit run, and a single slow scan down the
+  field. Seeded off the encounter id, so a compartment looks the same every
+  time the player is dragged back into it.
+
+  The plate positions and the body positions were separate numbers for one
+  revision and immediately drifted, which read as two glowing puddles the
+  fighters happened to be standing near; there is now one `STANCE` constant
+  both read from.
 - Combat has no hit animation beyond a screen shake and a brief white flash.
 
-## Systems designed but not implemented
+## The ship now keeps time, and the crew live in it
 
-- NPC schedules change rooms by time block, but ship-time only advances where
-  content explicitly calls `advanceTime()`, which is currently almost nowhere.
-  In practice the crew do not yet move.
+`advanceTime()` existed, `npcRoom()` existed, and every crew member declared a
+real six-block schedule. Nothing called `advanceTime()`, so `timeBlock` was
+permanently 0 and the whole table was fiction: Stray and Ivo stood in Muster
+forever, the habitation ring was never crossed by anybody, and Warden Trave
+never left a locked room four of the five backgrounds cannot open.
+
+Ship time now advances on work done, never on a wall clock — a mystery whose
+deadlines move while the player is away from the keyboard lies about cause and
+effect. One twenty-minute block passes per three beats, where a beat is a clue
+found, a deduction closed, a fight finished, or every fourth bulkhead transit.
+The clock strip warms for three seconds when the block turns, and the crew are
+reconciled against the schedule on room entry and again whenever the block
+turns — but only while the player is standing in the world, because
+rebuilding the cast mid-conversation would delete the person being spoken to.
+
+Measured by `npm run test:progression`, which drives the real code:
+
+- 9 clue finds moved the clock from block 0 to block 2
+- 11 crew produce 8 distinct arrangements across 8 blocks
+- the habitation ring is occupied in 7 of 8 blocks
+- Ivo is the only crew member who never moves, and that is deliberate: he is
+  standing a post, and getting past him is a distraction puzzle (`ivo-distracted`)
+  rather than a waiting game
+
+Block 0 was also two hours out. The clock was anchored at 02:00 per the watch
+roster, but the 02:00-04:00 hour with Hessa alive is not built and Trave says
+it is four in the morning in his first line of dialogue. A clock the player can
+read has to agree with the people talking to them.
+
+## Systems designed but not implemented
 - Faction reputation is tracked and adjusted but nothing reads it.
 - `suspicion` is incremented by combat and theft but gates no content yet.
 - The ship map screen (`map` action, bound to `E`) is not implemented.

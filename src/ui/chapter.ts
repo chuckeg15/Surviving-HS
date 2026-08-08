@@ -39,7 +39,7 @@ interface Outcome {
   apply: (s: GameState) => void;
 }
 
-const OUTCOMES: Outcome[] = [
+export const OUTCOMES: Outcome[] = [
   {
     id: 'O1',
     label: 'Put it to Warden Trave',
@@ -145,6 +145,49 @@ const OUTCOMES: Outcome[] = [
   },
 ];
 
+/**
+ * The Chapter Two threshold: how each Chapter One outcome gets the player onto
+ * Deck A.
+ *
+ * Deck A is sealed for the whole of Chapter One by canon, and that seal is
+ * load-bearing — the chapter's red herring points at the Captain, so the
+ * Captain has to be unreachable while it matters. The moment the chapter
+ * closes, the seal has done its job and the deck opens. What differs is the
+ * route, and every route is the outcome's own logic followed through:
+ *
+ *   O1  Trave broke. You go up as his witness escort, on his signature.
+ *   O2  The Board re-issues your tessera. You are an asset, and assets are
+ *       given keys \x7f including the strongroom, which is why O2 is the only
+ *       route that does not have to bargain with Onwe for the document.
+ *   O3  You are on a list. The lift reads your tessera and declines; the
+ *       Ninth Watch route under the command flat does not read anything.
+ *   O4  Nobody knows what you know, so nobody has any reason to stop you
+ *       riding up behind the Master's breakfast tray.
+ *
+ * There are two prizes on that deck \x7f the document and the Captain \x7f and
+ * no route hands you both. O2 walks into the strongroom and finds Onwe has
+ * nothing to say to a Board asset; everyone else has to get the safe out of
+ * her, and what she wants differs by how they arrived.
+ */
+export function openChapterTwo(s: GameState, outcome: string): void {
+  s.setFlag('knows-deck-a', true);
+  switch (outcome) {
+    case 'O2':
+      s.grantClearance('command');
+      s.grantClearance('command-safe');
+      break;
+    case 'O3':
+      // Deliberately NOT `command`: the lift stop stays listed and stays
+      // refused, so the player is told they are barred before they find the
+      // way around it. A route you did not know you were denied is not a route.
+      s.grantClearance('spine-command');
+      break;
+    default:
+      s.grantClearance('command');
+      break;
+  }
+}
+
 export class ChapterDecisionScene implements Scene {
   readonly id = 'chapter-decision';
   readonly modal = true;
@@ -174,6 +217,7 @@ export class ChapterDecisionScene implements Scene {
         const o = OUTCOMES[this.index];
         audio.sfx('ui.select');
         o.apply(s);
+        openChapterTwo(s, o.id);
         s.finishQuest('find-hessa', o.id);
         app.transition(new ChapterEndScene(o.id, o.title, o.body(s)));
       }

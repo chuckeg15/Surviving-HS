@@ -281,7 +281,11 @@ const sabbat: NpcDef = {
     accessory: 'earpiece',
     frame: 'slight',
   }),
-  schedule: ['b-registry', 'b-registry', 'b-registry', 'b-stacks', 'b-registry', 'b-registry'],
+  schedule: [
+    'b-registry', 'b-registry', 'b-registry', 'b-stacks',
+    'b-registry', 'b-registry', 'b-registry', 'b-stacks',
+    'b-registry', 'b-registry', 'b-stacks', 'b-registry',
+  ],
   post: { 'b-registry': [19, 8], 'b-stacks': [12, 5] },
   dialogue: {
     entry: (s) => {
@@ -519,8 +523,12 @@ const rask: NpcDef = {
     accent: PAL.bruise2,
     accessory: 'glasses',
   }),
-  schedule: ['b-vestibule', 'b-vestibule', 'b-stacks', 'b-vestibule', 'b-vestibule', 'b-vestibule'],
-  post: { 'b-vestibule': [12, 4], 'b-stacks': [18, 9] },
+  schedule: [
+    'b-vestibule', 'b-vestibule', 'b-stacks', 'b-vestibule',
+    'b-vestibule', 'b-vestibule', 'b-stacks', 'b-vestibule',
+    'b-vestibule', 'b-stacks', 'b-vestibule', 'b-vestibule',
+  ],
+  post: { 'b-vestibule': [12, 4], 'b-stacks': [18, 8] },
   dialogue: {
     entry: (s) => (s.has('rask-vouched') ? 'vouched' : 'first'),
     nodes: {

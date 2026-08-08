@@ -27,6 +27,7 @@ import { Rng } from '@/core/rng';
 import { GameState } from '@/game/state';
 import { bus } from '@/core/events';
 import { ROSTER_ENCOUNTERS } from '@/combat/roster';
+import { ArenaLook, BODY_H, DEFAULT_ARENA, STANCE, drawArena } from '@/combat/arena';
 
 // =====================================================================
 // DATA
@@ -327,6 +328,12 @@ export interface EncounterDef {
   onScan?: (s: GameState) => void;
   onLose?: (s: GameState) => void;
   canFlee: boolean;
+  /**
+   * How the projection field reads for this fight. Omitted encounters get a
+   * cold default; a boss should say so here rather than by being drawn
+   * differently somewhere else.
+   */
+  arena?: Partial<ArenaLook>;
 }
 
 const secondLoom: RevenantDef = {
@@ -443,6 +450,7 @@ export class BattleScene implements Scene {
   readonly hidesWorld = true;
 
   private enc: EncounterDef;
+  private arena: ArenaLook = DEFAULT_ARENA;
   private me!: Combatant;
   private foe!: Combatant;
   private phase: Phase = 'intro';
@@ -462,6 +470,11 @@ export class BattleScene implements Scene {
     private back: Scene,
   ) {
     this.enc = ENCOUNTERS[encounterId] ?? ENCOUNTERS['tutorial-spar'];
+    // Seeded off the encounter id so a compartment looks the same every time
+    // the player is dragged back into it.
+    let seed = 0;
+    for (const ch of this.enc.id) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    this.arena = { ...DEFAULT_ARENA, seed, ...this.enc.arena };
   }
 
   enter(app: App): void {
@@ -910,19 +923,14 @@ export class BattleScene implements Scene {
   // --- draw -------------------------------------------------------------
 
   draw(_app: App, p: Painter): void {
-    p.rect(0, 0, VW, VH, PAL.void0);
-    // projection field: two shallow arenas, not a photo backdrop
-    for (let i = 0; i < VH; i += 4) {
-      p.rect(0, i, VW, 1, mix(PAL.void0, PAL.void2, 0.6));
-    }
-    p.rect(0, 96, VW, 1, PAL.iron1);
+    drawArena(p, this.arena, this.timer);
     if (this.flashFx > 0) p.scrim(PAL.bone3, this.flashFx * 0.4);
 
     // Diagonal layout: each revenant sits opposite its own readout, so the two
     // bodies never collide with each other, with a panel, or with the message
     // box that opens along the bottom.
-    this.drawRevenant(p, this.foe, 150, 40, false);
-    this.drawRevenant(p, this.me, 284, 92, true);
+    this.drawRevenant(p, this.foe, STANCE.foe.x, STANCE.foe.y, false);
+    this.drawRevenant(p, this.me, STANCE.me.x, STANCE.me.y, true);
     this.drawCombatant(p, this.foe, 232, 12, false);
     this.drawCombatant(p, this.me, 14, 92, true);
 
@@ -1028,7 +1036,7 @@ export class BattleScene implements Scene {
     const bob = Math.round(Math.sin(t * 2.2) * 1);
     const ox = x + jitter;
     const oy = y + bob;
-    const h = 46;
+    const h = BODY_H;
     const w = 26;
 
     if (!alive) {

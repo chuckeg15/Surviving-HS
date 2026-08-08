@@ -53,6 +53,13 @@ export interface MarkDef extends LegendEntry {
   interact?: string;
   spawn?: string;
   door?: DoorSpec;
+  /**
+   * Author's note on who belongs on this tile. Read by nobody: placement is the
+   * `post` table in npcs.ts, validated against every schedule entry by
+   * tools/reachability.mjs. The field survives only because the eight marks
+   * still carrying it live in room definitions this module does not own; it
+   * should go with them.
+   */
   npc?: string;
   light?: { r: number; color: string; i: number; flicker?: number };
 }
@@ -106,7 +113,6 @@ export interface BuiltRoom {
   interactables: Interactable[];
   doors: DoorInstance[];
   spawns: Record<string, { x: number; y: number }>;
-  npcAnchors: Record<string, { x: number; y: number }>;
   anim: AnimatedQuad[];
   pixelW: number;
   pixelH: number;
@@ -197,7 +203,6 @@ export function buildRoom(def: RoomDef): BuiltRoom {
   const interactables: Interactable[] = [];
   const doors: DoorInstance[] = [];
   const spawns: Record<string, { x: number; y: number }> = {};
-  const npcAnchors: Record<string, { x: number; y: number }> = {};
   const anim: AnimatedQuad[] = [];
 
   const at = (x: number, y: number): string => def.layout[y]?.[x] ?? ' ';
@@ -291,7 +296,6 @@ export function buildRoom(def: RoomDef): BuiltRoom {
       if (mark) {
         if (mark.interact) interactables.push({ id: mark.interact, x, y });
         if (mark.spawn) spawns[mark.spawn] = { x, y };
-        if (mark.npc) npcAnchors[mark.npc] = { x, y };
         if (mark.light) lights.push({ x: x * TILE + 8, y: y * TILE + 8, ...mark.light });
         if (mark.door) {
           doors.push({ ...mark.door, x, y });
@@ -318,7 +322,6 @@ export function buildRoom(def: RoomDef): BuiltRoom {
     interactables,
     doors,
     spawns,
-    npcAnchors,
     anim,
     pixelW: w * TILE,
     pixelH: h * TILE,

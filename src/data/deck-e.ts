@@ -331,7 +331,11 @@ const kolt: NpcDef = {
     accessory: 'visor',
     accent: PAL.amber3,
   }),
-  schedule: ['e-loom', 'e-loom', 'e-reactor', 'e-loom', 'e-workshop', 'e-loom'],
+  schedule: [
+    'e-loom', 'e-loom', 'e-reactor', 'e-loom',
+    'e-workshop', 'e-loom', 'e-reactor', 'e-loom',
+    'e-workshop', 'e-loom', 'e-reactor', 'e-loom',
+  ],
   post: { 'e-loom': [11, 10], 'e-reactor': [12, 8], 'e-workshop': [12, 6] },
   dialogue: {
     entry: (s) => {

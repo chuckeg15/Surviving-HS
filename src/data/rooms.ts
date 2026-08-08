@@ -11,6 +11,7 @@ import { AMBIENT, RoomDef } from '@/world/map';
 import { ROOMS_D } from '@/data/deck-d';
 import { ROOMS_B } from '@/data/deck-b';
 import { ROOMS_E } from '@/data/deck-e';
+import { ROOMS_A } from '@/data/deck-a';
 import { PAL } from '@/art/palette';
 
 const CARPET = ['floor.carpet.a', 'floor.carpet.b', 'floor.carpet.worn'];
@@ -259,7 +260,7 @@ const spineDuct: RoomDef = {
     '#....1.......2........3........#',
     '#..............................#',
     '#.......~~~~~~~~~~~~~..........#',
-    '#..............................#',
+    '#.........................U....#',
     '#..g......................g....#',
     '#....@....................4....#',
     '#DD#############################',
@@ -276,10 +277,32 @@ const spineDuct: RoomDef = {
     '4': { interact: 'sentinel-post' },
     '@': { spawn: 'default' },
     D: { door: { to: 'c-muster', spawn: 'from-duct' }, spawn: 'from-muster' },
+    /**
+     * The crawl forward to Deck A. It has to exist here as well as at the far
+     * end, or the spine route is one-way: the player could drop out of Command
+     * into the duct and never climb back the way they came.
+     *
+     * Locked for the whole of Chapter One, and that is canon rather than
+     * pacing. The chapter's red herring points at the Captain, so the Captain
+     * must be unreachable; an unlocked hatch here would let a player walk up
+     * and ask her, and deduction D-X would never land.
+     */
+    U: {
+      door: {
+        to: 'a-spine',
+        spawn: 'from-duct',
+        tile: 'hatch.closed',
+        locked: 'spine-command',
+        refuse:
+          'The crawl runs forward under the command flat. The hatch at the far end is dogged from the other side.',
+      },
+      spawn: 'from-command-crawl',
+    },
   },
 };
 
 export const ROOMS: Record<string, RoomDef> = {
+  ...ROOMS_A,
   ...ROOMS_D,
   ...ROOMS_B,
   ...ROOMS_E,

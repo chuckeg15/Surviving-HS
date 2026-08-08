@@ -7,7 +7,7 @@
  * damaged slot rather than crashing the title screen or being silently wiped.
  */
 
-import { GameState, SAVE_VERSION, SerializedState } from '@/game/state';
+import { GameState, SAVE_VERSION, SerializedState, clockFor } from '@/game/state';
 import { bus } from '@/core/events';
 
 export const SLOT_COUNT = 3;
@@ -62,8 +62,6 @@ export function slotInfo(slot: number): SlotInfo {
   const data = readSlot(slot);
   if (!data) return { slot, empty: false, damaged: true };
   const found = Object.values(data.clues ?? {}).filter((c) => c.found && !c.lost).length;
-  const total = 2 * 60 + (data.timeBlock ?? 0) * 20;
-  const clock = `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
   return {
     slot,
     empty: false,
@@ -71,7 +69,7 @@ export function slotInfo(slot: number): SlotInfo {
     name: data.profile?.name ?? '???',
     background: data.profile?.background,
     chapter: data.chapter ?? 1,
-    clock,
+    clock: clockFor(data.timeBlock ?? 0),
     clues: found,
     room: data.room,
     savedAt: data.savedAt,

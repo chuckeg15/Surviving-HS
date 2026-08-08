@@ -64,7 +64,7 @@ export class LiftScene implements Scene {
       }
       if (stop.clearance && !clearancesOf(app.state).includes(stop.clearance)) {
         audio.sfx('terminal.deny');
-        this.say(stop.refuse ?? 'The panel declines that deck.');
+        this.say(stop.refuse?.((f) => app.state.has(f)) ?? 'The panel declines that deck.');
         return;
       }
       this.travelling = true;

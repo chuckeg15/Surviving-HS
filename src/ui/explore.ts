@@ -22,7 +22,8 @@ import {
   stepSoundAt,
 } from '@/world/map';
 import { ROOMS } from '@/data/rooms';
-import { NPCS, npcRoom } from '@/data/npcs';
+import { NPCS, npcPost, npcRoom } from '@/data/npcs';
+import { installShipTime } from '@/world/shiptime';
 import { INTERACTABLES, CLUES, clearancesOf } from '@/data/content';
 import { DialogueRunner, TONE_LABEL } from '@/game/dialogue';
 import { LiftScene } from '@/ui/lift';
@@ -72,12 +73,34 @@ export class ExploreScene implements Scene {
    * tile is armed again the moment they step off it.
    */
   private doorCooldown: { x: number; y: number } | null = null;
+  /** Seconds left on the clock's turn-of-the-block highlight. */
+  private clockPulse = 0;
+  /**
+   * Set when the block turns, applied when the player is next standing still in
+   * the world. Rebuilding the cast mid-conversation would delete the person
+   * being spoken to, and a clue found inside a dialogue tree is itself a beat.
+   */
+  private crewDirty = false;
+  private teardown: (() => void)[] = [];
 
   enter(app: App): void {
     // Modal scenes (lift, ship map) move the player through this, so they never
     // need to know how rooms are loaded.
     app.traveller = (room, spawn) => this.loadRoom(app, room, spawn);
+    this.teardown = [
+      installShipTime(app.state),
+      bus.on('time:tick', () => {
+        this.crewDirty = true;
+        this.clockPulse = 3.0;
+        app.toast(`Ship time ${app.state.clock()}`, '\x0B', PAL.halo3);
+      }),
+    ];
     this.loadRoom(app, app.state.room, null);
+  }
+
+  exit(): void {
+    for (const off of this.teardown) off();
+    this.teardown = [];
   }
 
   // --- room loading -----------------------------------------------------
@@ -119,17 +142,37 @@ export class ExploreScene implements Scene {
 
     s.room = roomId;
     this.doorCooldown = { x: Math.floor(px / TILE), y: Math.floor((py - 1) / TILE) };
-    this.spawnNpcs(app);
+    this.npcs = [];
+    this.crewDirty = false;
+    this.syncNpcs(app);
     this.bannerTimer = 3.0;
     bus.emit('room:enter', { room: roomId });
   }
 
-  private spawnNpcs(app: App): void {
-    this.npcs = [];
+  /**
+   * Reconciles who is standing in this room against the schedule.
+   *
+   * Run on every room load and again whenever the block turns, because the
+   * player can stand in the Commons across a whole block and has to see Fen
+   * walk out rather than discover her missing three rooms later. Anyone whose
+   * room did not change keeps the actor they already had, so the crew are not
+   * snapped back to their posts every twenty minutes.
+   */
+  private syncNpcs(app: App): void {
     const s = app.state;
+    const here = new Set<string>();
     for (const def of Object.values(NPCS)) {
-      if (npcRoom(def, s) !== s.room) continue;
-      const post = def.post[s.room] ?? [4, 4];
+      // Every record, not only this room's: the journal and the map read these,
+      // and a stale room on someone two decks away is a lie with no symptom.
+      const room = npcRoom(def, s);
+      s.npc(def.id).room = room;
+      if (room === s.room) here.add(def.id);
+    }
+    this.npcs = this.npcs.filter((n) => here.has(n.id));
+    for (const id of here) {
+      if (this.npcs.some((n) => n.id === id)) continue;
+      const def = NPCS[id];
+      const post = npcPost(def, s.room);
       const key = `npc:${def.id}`;
       app.sheetRegion(key, def.look);
       const actor = new Actor({
@@ -146,7 +189,7 @@ export class ExploreScene implements Scene {
         brain: new NpcBrain(actor.x, actor.y, 22),
         regionKey: key,
       });
-      s.npc(def.id).room = s.room;
+      bus.emit('npc:moved', { id, room: s.room });
     }
   }
 
@@ -155,6 +198,11 @@ export class ExploreScene implements Scene {
   update(app: App, dt: number): void {
     this.animTime += dt;
     if (this.bannerTimer > 0) this.bannerTimer -= dt;
+    if (this.clockPulse > 0) this.clockPulse -= dt;
+    if (this.crewDirty && this.mode === 'walk') {
+      this.crewDirty = false;
+      this.syncNpcs(app);
+    }
 
     if (this.mode === 'dialogue') this.updateDialogue(app, dt);
     else if (this.mode === 'examine') this.updateExamine(app, dt);
@@ -549,9 +597,13 @@ export class ExploreScene implements Scene {
   private drawHud(app: App, p: Painter): void {
     const s = app.state;
     const st = settings.get();
-    // clock strip, bottom-left: unobtrusive but always answers "when is this"
+    // Clock strip, bottom-left: unobtrusive but always answers "when is this".
+    // It warms toward halo for three seconds when the block turns and then
+    // fades back — a player cannot plan around a schedule whose changes are
+    // silent, and a strobe would be a lie about how urgent twenty minutes is.
+    const turn = Math.max(0, this.clockPulse / 3.0);
     p.alpha(0.85, () => p.panel(6, VH - 16, 52, 11, 'plate'));
-    p.text(s.clock(), 11, VH - 13, { color: PAL.bone2 });
+    p.text(s.clock(), 11, VH - 13, { color: mix(PAL.bone2, PAL.halo3, turn) });
 
     if (st.objectiveHud) {
       const obj = currentObjective(app);

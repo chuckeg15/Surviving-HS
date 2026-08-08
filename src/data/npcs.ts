@@ -18,9 +18,19 @@ export interface NpcDef {
   name: string;
   role: string;
   look: ActorLook;
-  /** room id per time block; index clamps to the last entry. */
+  /**
+   * Room id per time block, from 04:00 in twenty-minute steps; the index clamps
+   * to the last entry, so the final room is where this person spends the rest
+   * of the watch. Deck C rosters run the full twelve blocks to 07:40 because
+   * the ring is the room the player crosses most and an empty ring reads as an
+   * empty ship.
+   */
   schedule: string[];
-  /** Where in the room they stand, in tiles. */
+  /**
+   * Where in the room they stand, in tiles. Every room a schedule names needs an
+   * entry here; `tools/reachability.mjs` fails the build otherwise, and also
+   * fails it if the tile is one nothing can stand on.
+   */
   post: Record<string, [number, number]>;
   dialogue: DialogueDef;
 }
@@ -53,8 +63,14 @@ const stray: NpcDef = {
     accent: PAL.moss3,
     accessory: 'earpiece',
   }),
-  schedule: ['c-muster', 'c-muster', 'c-muster', 'c-commons', 'c-commons', 'c-muster'],
-  post: { 'c-muster': [5, 6], 'c-commons': [4, 8] },
+  // A bosun holds the muster board through the handover, takes a mug in the
+  // Commons in the middle of the watch, and walks the ring twice.
+  schedule: [
+    'c-muster', 'c-muster', 'c-corridor', 'c-commons',
+    'c-commons', 'c-corridor', 'c-muster', 'c-muster',
+    'c-muster', 'c-muster', 'c-corridor', 'c-muster',
+  ],
+  post: { 'c-muster': [5, 5], 'c-commons': [5, 6], 'c-corridor': [15, 6] },
   dialogue: {
     entry: (s) => {
       if (s.hasDeduction('D3') && !s.has('told-stray-taken')) return 'taken';
@@ -304,7 +320,12 @@ const fen: NpcDef = {
     uniform: 'galley',
     accent: PAL.moss4,
   }),
-  schedule: ['c-commons', 'c-commons', 'c-commons', 'c-commons', 'c-corridor', 'c-commons'],
+  // The galley runs the ring's bins. Three trips out, the rest behind the counter.
+  schedule: [
+    'c-commons', 'c-commons', 'c-commons', 'c-corridor',
+    'c-commons', 'c-commons', 'c-corridor', 'c-commons',
+    'c-commons', 'c-corridor', 'c-commons', 'c-commons',
+  ],
   post: { 'c-commons': [3, 5], 'c-corridor': [8, 8] },
   dialogue: {
     entry: (s) => (s.npc('fen').met ? 'again' : 'first'),
@@ -394,8 +415,14 @@ const cael: NpcDef = {
     accent: PAL.amber2,
     accessory: 'visor',
   }),
-  schedule: ['c-commons', 'c-commons', 'c-corridor', 'c-commons', 'c-commons', 'c-commons'],
-  post: { 'c-commons': [14, 10], 'c-corridor': [20, 8] },
+  // He keeps going out to the ring to re-run the trim where nobody can see him
+  // doing it for the twelfth time.
+  schedule: [
+    'c-commons', 'c-corridor', 'c-commons', 'c-commons',
+    'c-corridor', 'c-commons', 'c-commons', 'c-corridor',
+    'c-commons', 'c-commons', 'c-corridor', 'c-commons',
+  ],
+  post: { 'c-commons': [16, 10], 'c-corridor': [20, 8] },
   dialogue: {
     entry: (s) => {
       if (!s.has('tutorial-spar') && s.tesserae.length > 0) return 'spar';
@@ -499,7 +526,19 @@ const trave: NpcDef = {
     accent: PAL.ember2,
     accessory: 'cap',
   }),
-  schedule: ['c-watch', 'c-watch', 'c-watch', 'c-corridor', 'c-watch', 'c-watch'],
+  /**
+   * Every second block he is on the ring, and the last block leaves him there.
+   *
+   * The Watch office is clearance-locked to one background, so a Warden who
+   * never leaves it is a Warden four players in five can never meet — and O1,
+   * confronting him, is the outcome that whole route exists for. Walking the
+   * ring is also the only duty he names out loud, twice, when he is lying.
+   */
+  schedule: [
+    'c-watch', 'c-corridor', 'c-watch', 'c-corridor',
+    'c-watch', 'c-corridor', 'c-watch', 'c-corridor',
+    'c-watch', 'c-corridor', 'c-watch', 'c-corridor',
+  ],
   post: { 'c-watch': [10, 6], 'c-corridor': [24, 8] },
   dialogue: {
     entry: (s) => {
@@ -512,9 +551,12 @@ const trave: NpcDef = {
         id: 'first',
         speaker: 'trave',
         expr: 'neutral',
-        text:
-          'Crewman. It is four in the morning and you are not on my board.\n\n' +
-          'Standing Order Four requires a stated purpose for presence in a Watch space. State one.',
+        text: (s) =>
+          s.room === 'c-watch'
+            ? 'Crewman. It is four in the morning and you are not on my board.\n\n' +
+              'Standing Order Four requires a stated purpose for presence in a Watch space. State one.'
+            : 'Crewman. It is four in the morning and you are on my ring.\n\n' +
+              'Standing Order Four requires a stated purpose. State one.',
         onEnter: (s) => (s.npc('trave').met = true),
         choices: [
           { text: 'Hessa Quill.', tone: 'honest', to: 'quill' },
@@ -536,7 +578,10 @@ const trave: NpcDef = {
           {
             text: 'Can I look at your bin, Warden?',
             tone: 'wry',
-            if: (s) => relationAtLeast(s.relationLevel('trave'), 'professional'),
+            // His bin is in his office; asking about it on the ring is nonsense.
+            if: (s) =>
+              s.room === 'c-watch' &&
+              relationAtLeast(s.relationLevel('trave'), 'professional'),
             to: 'bin',
           },
           { text: 'Nothing.', tone: 'silent', to: 'out' },
@@ -645,9 +690,12 @@ const trave: NpcDef = {
         id: 'corner',
         speaker: 'trave',
         expr: 'sad',
-        text:
-          'You have that look. The one where somebody has done the arithmetic.\n\nGo on, then. ' +
-          'Say it in a room with a door on it, at least.',
+        text: (s) =>
+          s.room === 'c-watch'
+            ? 'You have that look. The one where somebody has done the arithmetic.\n\nGo on, then. ' +
+              'Say it in a room with a door on it, at least.'
+            : 'You have that look. The one where somebody has done the arithmetic.\n\nNot in the ' +
+              'middle of the ring. Walk to the end of the frame with me and say it there.',
         choices: [
           {
             text: 'You detained her. You filed the transfer yourself.',
@@ -725,7 +773,9 @@ const ivo: NpcDef = {
     uniform: 'watch',
     accent: PAL.ember2,
   }),
-  schedule: ['c-muster', 'c-muster', 'c-muster', 'c-muster', 'c-muster', 'c-muster'],
+  // One entry, and the clamp holds it for the whole watch: Ivo is the hatch.
+  // Five of the set-piece's seven routes assume he is standing on it.
+  schedule: ['c-muster'],
   post: { 'c-muster': [19, 9] },
   dialogue: {
     entry: (s) => {
@@ -822,8 +872,9 @@ const ivo: NpcDef = {
 import { NPCS_D } from '@/data/deck-d';
 import { NPCS_B } from '@/data/deck-b';
 import { NPCS_E } from '@/data/deck-e';
+import { NPCS_A } from '@/data/deck-a';
 
-export const NPCS: Record<string, NpcDef> = { stray, fen, cael, trave, ivo, ...NPCS_D, ...NPCS_B, ...NPCS_E };
+export const NPCS: Record<string, NpcDef> = { stray, fen, cael, trave, ivo, ...NPCS_D, ...NPCS_B, ...NPCS_E, ...NPCS_A };
 
 /** Where an NPC is at the current ship-time. */
 export function npcRoom(def: NpcDef, s: GameState): string {
@@ -831,4 +882,15 @@ export function npcRoom(def: NpcDef, s: GameState): string {
   if (pinned) return pinned;
   const i = Math.min(def.schedule.length - 1, Math.max(0, s.timeBlock));
   return def.schedule[i];
+}
+
+/**
+ * The tile an NPC stands on in a given room, and the only way anyone is placed.
+ *
+ * The fallback exists for `pinned`, which the story can point at any room and
+ * which no static check can see coming. Scheduled rooms cannot reach it: the
+ * reachability audit fails the build on a schedule entry with no post.
+ */
+export function npcPost(def: NpcDef, room: string): [number, number] {
+  return def.post[room] ?? [4, 4];
 }

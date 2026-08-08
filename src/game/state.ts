@@ -11,6 +11,26 @@ import { bus } from '@/core/events';
 
 export const SAVE_VERSION = 3;
 
+/**
+ * Ship time is counted in twenty-minute blocks from the mid-watch muster.
+ *
+ * Block 0 is 04:00, not 02:00: canon runs third watch 02:00-08:00, but the
+ * 02:00-04:00 tutorial hour with Hessa alive is not built, so the game opens on
+ * the muster she fails to answer. Anchoring the clock at 02:00 put the HUD two
+ * hours behind every line of dialogue in the chapter — Trave says it is four in
+ * the morning in his first sentence — and a clock the player can read has to
+ * agree with the people talking to them. Chapter One therefore ends at block 12.
+ */
+export const WATCH_START_MINUTES = 4 * 60;
+export const BLOCK_MINUTES = 20;
+
+export function clockFor(block: number): string {
+  const total = WATCH_START_MINUTES + block * BLOCK_MINUTES;
+  const h = Math.floor(total / 60) % 24;
+  const m = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 export type Pronouns = 'she/her' | 'he/him' | 'they/them' | 'xe/xem';
 
 export type BackgroundId = 'maintenance' | 'medical' | 'registry' | 'watch' | 'loom';
@@ -338,12 +358,6 @@ export class GameState {
 
   // --- time -------------------------------------------------------------
 
-  /** Ship-time label, e.g. "04:20". Chapter One runs 02:00 to 08:00. */
-  /**
-   * Adds a clearance the player was not born with. Stored as a comma string
-   * because clearancesOf() already reads that shape; keeping one representation
-   * avoids two sources of truth for who may open what.
-   */
   /**
    * Rooms the player has actually stood in. The ship map shows only these:
    * revealing the whole vessel on turn one answers the question exploring is
@@ -360,6 +374,11 @@ export class GameState {
     return ((this.flag('visited') as string) ?? '').split(',').filter(Boolean);
   }
 
+  /**
+   * Adds a clearance the player was not born with. Stored as a comma string
+   * because clearancesOf() already reads that shape; keeping one representation
+   * avoids two sources of truth for who may open what.
+   */
   grantClearance(c: string): void {
     const cur = ((this.flag('granted-clearances') as string) ?? '')
       .split(',')
@@ -369,11 +388,9 @@ export class GameState {
     this.setFlag('granted-clearances', cur.join(','));
   }
 
+  /** Ship-time label, e.g. "05:20". */
   clock(): string {
-    const total = 2 * 60 + this.timeBlock * 20;
-    const h = Math.floor(total / 60) % 24;
-    const m = total % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    return clockFor(this.timeBlock);
   }
 
   advanceTime(blocks = 1): void {

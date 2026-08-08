@@ -9,6 +9,7 @@
 import { CLUES_D } from "@/data/deck-d";
 import { CLUES_B } from "@/data/deck-b";
 import { CLUES_E } from "@/data/deck-e";
+import { CLUES_A, DEDUCTIONS_A, INTERACTABLES_A } from "@/data/deck-a";
 import { GameState, BackgroundId, RelationLevel, relationAtLeast } from '@/game/state';
 import { ActorLook } from '@/art/actors';
 import { PAL } from '@/art/palette';
@@ -159,6 +160,7 @@ export const CLUES: Record<string, Clue> = {
   ...CLUES_D,
   ...CLUES_B,
   ...CLUES_E,
+  ...CLUES_A,
   'transfer-record': {
     id: 'transfer-record',
     title: 'TRANSFER RECORD',
@@ -293,6 +295,7 @@ export interface Deduction {
 }
 
 export const DEDUCTIONS: Record<string, Deduction> = {
+  ...DEDUCTIONS_A,
   D5: {
     id: 'D5',
     claim: 'Hessa is in Medical Annex 3.',
@@ -414,6 +417,7 @@ export interface InteractDef {
 const has = (s: GameState, c: string) => clearancesOf(s).includes(c);
 
 export const INTERACTABLES: Record<string, InteractDef> = {
+  ...INTERACTABLES_A,
   // --- encounter triggers ------------------------------------------------
   // Content that exists but nothing can reach is content that does not exist.
   // Each of these is the ONLY way its encounter is entered.

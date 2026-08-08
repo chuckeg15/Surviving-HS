@@ -91,6 +91,21 @@ async function boot(): Promise<void> {
           app.push(new ChapterDecisionScene());
           break;
         }
+        case 'deck-a':
+        case 'a-command':
+        case 'a-comms':
+        case 'a-cabin':
+        case 'a-strong':
+        case 'a-spine': {
+          // Deck A only exists after the Chapter Two threshold, so the seed has
+          // to walk through it rather than teleporting past it — a room that
+          // looks right only when the clearances are faked is not built.
+          const { openChapterTwo } = await import('@/ui/chapter');
+          seed(name === 'deck-a' ? 'a-command' : name);
+          openChapterTwo(app.state, 'O2');
+          app.replace(new ExploreScene());
+          break;
+        }
         case 'shipmap': {
           const { ShipMapScene } = await import('@/ui/shipmap');
           seed('c-commons');
