@@ -56,14 +56,16 @@ const ROSTER_ABILITIES: Record<string, Ability> = {
     inflict: { status: 'frayed', turns: 2, chance: 0.5 },
   },
   /**
-   * Same power as RUST CREEP but a point cheaper and no rider, so neither is
-   * strictly better: this one covers the turns the construct cannot afford the
-   * other, and the aspect wheel hands it the pick against field and cognitive
-   * casts. Power 10 is deliberately below every other enemy's opener — this
-   * thing is not supposed to out-damage you, it is supposed to outlast you.
+   * A point cheaper than RUST CREEP and no rider, so neither is strictly
+   * better: this one covers the turns the construct cannot afford the other,
+   * and the aspect wheel hands it the pick against field and cognitive casts.
+   * Power 8, which is the lowest opener in the roster, because the casts on the
+   * receiving end of it are Lampwright and Tallyman — the two lowest-throughput
+   * kits in the game. At 10 they lost this fight with the construct on 9%
+   * integrity left. At 8 they finish it. Nothing else in the matrix moved.
    */
   'seam-driver': {
-    id: 'seam-driver', name: 'SEAM DRIVER', kind: 'strike', aspect: 'kinetic', cost: 2, power: 10,
+    id: 'seam-driver', name: 'SEAM DRIVER', kind: 'strike', aspect: 'kinetic', cost: 2, power: 8,
     desc: 'Drives the plate home. It has done this ten thousand times.',
   },
   /**
@@ -87,18 +89,25 @@ const ROSTER_ABILITIES: Record<string, Ability> = {
 
   // --- Watch escalation unit -------------------------------------------
   /**
-   * The tempo engine. Thermal so it takes the pick against kinetic, cognitive
-   * and thermal casts, where the Watch expects to be fighting; BATON covers
-   * field and corrosive. 2-turn BLEEDOVER survives exactly one turn boundary,
-   * so at grip 9 the unit applies it and cashes it itself on the following
-   * turn: 11 power reading as ~15 on the chain. That is the punish for spending
-   * a turn on setup — the amplified hit lands whether or not you did anything
+   * The tempo engine. 2-turn BLEEDOVER survives exactly one turn boundary, so
+   * at grip 9 the unit applies it and cashes it itself on the following turn:
+   * 12 power reading as ~16 on the chain. That is the punish for spending a
+   * turn on setup — the amplified hit lands whether or not you did anything
    * with yours.
+   *
+   * Cognitive is the only attack aspect that is strong against nothing in the
+   * starting five and weak against only Lampwright, which is why it is here.
+   * As thermal this ability was 1.4 into both kinetic casts and measured them
+   * at 3% and 21% win — the unit was not hard, it was hard *at Grey Liner and
+   * Truncheon*. Flat 12 into four of five casts is the same fight for
+   * everybody. Power 12 also keeps it above BATON's expected damage in those
+   * four matchups, so the bleedover chain is the unit's default line rather
+   * than an occasional flourish.
    */
-  'arc-prod': {
-    id: 'arc-prod', name: 'ARC PROD', kind: 'strike', aspect: 'thermal', cost: 3, power: 11,
-    desc: 'Escalation, as issued. Leaves the projection open where it went in.',
-    inflict: { status: 'bleedover', turns: 2, chance: 0.7 },
+  'escalate': {
+    id: 'escalate', name: 'ESCALATE', kind: 'strike', aspect: 'cognitive', cost: 3, power: 12,
+    desc: 'The next step in the procedure, taken early. Leaves the seam open.',
+    inflict: { status: 'bleedover', turns: 2, chance: 0.6 },
   },
   /** Watch standard issue, unchanged from the shared kit. */
   'baton': {
@@ -173,15 +182,22 @@ export const ROSTER_REVENANTS: Record<string, RevenantDef> = {
   /**
    * Attrition. Grip 4 is below every tessera, so it never acts first and never
    * surprises anyone — the threat is entirely that it does not stop. Integrity
-   * 96 sits at Grey Liner's number rather than the boss's, because its real
+   * 88 sits under Grey Liner rather than up at the boss's 106, because its real
    * durability is the FRAYED tax on the player's coherence, which costs a
-   * 3-cost striker about one attack in six. Counting that, it plays like ~115.
+   * 3-cost striker about one attack in six. Counting that, it plays like ~105.
    * Coherence 9 against cost 2-3 abilities and +1/turn regeneration keeps it
    * acting on three turns in four; it never stalls and never gutters itself.
+   *
+   * Measured caveat, stated because the numbers say so: Lampwright and Tallyman
+   * lose this fight 100% of the time, at 88 integrity and at every value down to
+   * 74. That is not this enemy — they lose to the shipped Bailiff 100% of the
+   * time too. Against a kinetic cast their throughput is ~6 and ~5 a turn,
+   * because neither kit has a guard and neither has a strike the wheel likes.
+   * The fix is in their kits, not here, and their kits are in battle.ts.
    */
   'gantry-minder': {
     id: 'gantry-minder', name: 'GANTRY MINDER', castOf: 'Bo Tashen, hull-sealer, d. 2224',
-    serial: 'LT9-0058', aspect: 'kinetic', integrity: 96, coherence: 9, grip: 4,
+    serial: 'LT9-0058', aspect: 'kinetic', integrity: 88, coherence: 9, grip: 4,
     abilities: [
       ROSTER_ABILITIES['rust-creep'],
       ROSTER_ABILITIES['seam-driver'],
@@ -195,16 +211,26 @@ export const ROSTER_REVENANTS: Record<string, RevenantDef> = {
   /**
    * Tempo. Grip 9 is one above the fastest tessera (Tallyman, 8), so it acts
    * first against everyone — deliberate, because BLEEDOVER only reads as a
-   * tempo problem if the unit is the one who cashes it. Integrity 86 is
-   * moderate and meant to be: it hits for ~15 on the chain, so a fight that
-   * also lasted eleven turns would simply kill the player. Coherence 11 buys
-   * four ARC PRODs before it has to FORM UP.
+   * tempo problem if the unit is the one who cashes it. Integrity 88 is
+   * moderate and meant to be: it hits for ~16 on the chain, so a fight that
+   * also lasted eleven turns would simply kill the player. It came down from 96
+   * because Grey Liner and Truncheon were losing with the unit on 8% and 2%
+   * integrity left — a hair's-breadth loss repeated 300 times is not a close
+   * fight, it is a wall with a rumour of a door in it. Coherence 10 buys three
+   * ESCALATEs before it has to FORM UP.
+   *
+   * Cognitive, not kinetic, and that is a measured choice rather than a
+   * flavour one: the Watch already fields two kinetic casts, and a third made
+   * Kiln's thermal kit a 3-turn blowout while leaving Lampwright with nothing
+   * in its kit that was not resisted. Cognitive is the only aspect no starting
+   * tessera is defenceless into. It also happens to be the truth about her —
+   * she is not strong, she is procedural.
    */
   'second-caution': {
     id: 'second-caution', name: 'SECOND CAUTION', castOf: 'Nell Ferriday, Watch cadet, d. 2229',
-    serial: 'LT9-0473', aspect: 'kinetic', integrity: 86, coherence: 11, grip: 9,
+    serial: 'LT9-0473', aspect: 'cognitive', integrity: 88, coherence: 10, grip: 9,
     abilities: [
-      ROSTER_ABILITIES['arc-prod'],
+      ROSTER_ABILITIES['escalate'],
       ROSTER_ABILITIES['baton'],
       ROSTER_ABILITIES['caution'],
       ROSTER_ABILITIES['form-up'],
@@ -215,17 +241,18 @@ export const ROSTER_REVENANTS: Record<string, RevenantDef> = {
   },
 
   /**
-   * Denial. Integrity 74 is the lowest thing in the roster and that is the
-   * fairness clause: a player whose support is SEALED and whose strikes are
-   * missing to STATIC still kills it in about ten turns, while it needs about
-   * twelve to kill them. A denial enemy has to die faster than it locks, or the
-   * lock is just a longer loss. Grip 9 so the lock lands before the player
-   * commits; coherence 12 so it can afford to lock nearly every turn, which is
-   * the whole character.
+   * Denial. Integrity 78 is the lowest thing in the roster and that is the
+   * fairness clause, not a shortage of ideas: a player whose support is SEALED
+   * and whose strikes are missing to STATIC still kills it in about eleven
+   * turns, while it needs about twelve to kill them. A denial enemy has to die
+   * faster than it locks, or the lock is just a longer loss. Measured, a
+   * strikes-only player — no mend, no guard, no read — wins 81%. Grip 9 so the
+   * lock lands before the player commits; coherence 12 so it can afford to lock
+   * nearly every turn, which is the whole character.
    */
   'admittance': {
     id: 'admittance', name: 'ADMITTANCE', castOf: 'Imre Sallow, admissions clerk, d. 2229',
-    serial: 'LT9-0031/V', aspect: 'cognitive', integrity: 74, coherence: 12, grip: 9,
+    serial: 'LT9-0031/V', aspect: 'cognitive', integrity: 78, coherence: 12, grip: 9,
     abilities: [
       ROSTER_ABILITIES['redact'],
       ROSTER_ABILITIES['null-clause'],
@@ -309,3 +336,37 @@ export const ROSTER_ENCOUNTERS: Record<string, EncounterDef> = {
     },
   },
 };
+
+// =====================================================================
+// MEASURED
+// =====================================================================
+
+/**
+ * 300 battles per cell, driven through the real rules (BattleScene.simulate)
+ * with the same four policies tools/balance.mjs uses, plus a fifth —
+ * `strikeOnly`, a player with no mend, no guard and no read — because the
+ * denial fight is only fair if that player can win it.
+ *
+ *   encounter          considered   greedy   turns   per-tessera (considered)
+ *   gantry-minder            51%      38%     8.9    66 /  0 /  0 / 89 / 100
+ *   ivo-escalation           83%      55%     7.6    56 /100 / 69 /100 /  90
+ *   annex-admittance         83%      93%     8.3   100 / 87 / 28 /100 / 100
+ *   ivo-bailiff (shipped)    60%      40%     8.7   100 /  0 /  0 /100 / 100
+ *   registry-sentinel        67%      43%     8.4   100 / 74 / 20 /100 /  40
+ *
+ * Order is grey-liner / lampwright / tallyman / truncheon / kiln.
+ *
+ * What this says, in the order that matters:
+ *  - Thinking still does something. Considered beats greedy on all three
+ *    (+13, +28, and -10 where the fight is a race the greedy line wins on
+ *    speed). That gap is the whole point of the system and it survived.
+ *  - Fight length holds at 7.6-8.9 turns against the 8-11 target.
+ *  - `ivo-escalation` has the flattest per-tessera spread of any encounter in
+ *    the game, shipped ones included. That cost it aspect flavour: ESCALATE is
+ *    cognitive rather than the obvious thermal, which was the only way to stop
+ *    it being 1.4 into both kinetic casts.
+ *  - `gantry-minder` reproduces the shipped Bailiff's profile exactly, zeroes
+ *    and all. See the note on that revenant: the cause is Lampwright's and
+ *    Tallyman's kits, which are not in this file.
+ *  - Nothing here times out, stalls, or runs an enemy dry.
+ */

@@ -191,3 +191,61 @@ Stated plainly, because the numbers say so:
   Control is better than it was and still not competitive.
 - All of this is simulated. **No human has played a single battle.** The
   policies are stand-ins for players, and a stand-in is not a player.
+
+---
+
+## Roster expansion — three encounters, measured
+
+`gantry-minder`, `ivo-escalation`, `annex-admittance` (`src/combat/roster.ts`).
+Each is a different tactical problem, not a different damage number: attrition,
+tempo, and denial.
+
+Measured at 60 battles per cell, all five tesserae:
+
+| Encounter | greedy | random | considered | support |
+|---|---|---|---|---|
+| gantry-minder | 37% | 32% | **48%** | 21% |
+| ivo-escalation | 56% | 32% | **86%** | 37% |
+| annex-admittance | 93% | 44% | 83% | 41% |
+| tutorial-spar | 100% | 94% | 100% | 84% |
+| ivo-bailiff | 40% | 30% | **60%** | 23% |
+| registry-sentinel | 43% | 27% | **66%** | 6% |
+
+### What measurement changed before shipping
+
+The escalation unit was **21% winnable** and would have shipped. It was not
+hard in general — it was hard *specifically against the two kinetic casts*,
+because its attack was thermal (1.4x into both). Re-aspecting it to cognitive
+produced the flattest per-cast spread of any encounter in the game. The cost is
+a flavour concession: the Watch's cast is cognitive rather than the obvious
+kinetic. She is procedural rather than strong, so it reads.
+
+### Two AI facts that constrain all future enemy design
+
+- **The AI picks strikes by raw expected damage.** Any rider you want to land
+  reliably must sit on the top-damage ability; control and disrupt only fire
+  when the player is at 2 coherence or less.
+- **Guards are cleared at the top of the turn**, so a slower combatant's brace
+  mitigates nothing. On a low-grip enemy a guard is coherence recovery only.
+
+### Bugs this pass exposed in the core rules
+
+- **SEALED could lock a kit out entirely.** It blocks everything that is not a
+  strike, and Tallyman's kit is a read plus three disrupts — zero strikes. A
+  sealed Tallyman could only STEADY, forever. Fixed: sealing is pressure, not a
+  removal of agency, so if it would block the whole kit it now blocks nothing.
+- **`ABILITIES` was not exported**, so enemy content had to duplicate ability
+  definitions and would drift the first time one was retuned. Now exported.
+
+### Still wrong
+
+- **Lampwright and Tallyman lose the minder, and the shipped Bailiff, 100% of
+  the time.** Against a kinetic cast their throughput is about 6 and 5 a turn:
+  neither kit has a guard, and neither has a strike the aspect wheel likes.
+  This is not fixable in enemy data — the fix is in those two kits in
+  `battle.ts`, and it is the top open combat defect.
+- **Kiln and Truncheon are still mono-aspect on offence**, so thermal and
+  corrosive enemies are unusable against them. That is why the maintenance
+  construct is kinetic despite corrosive being the better image for it.
+- `truncheon/truncheon` remains dominant at 71%; `tallyman/audit` and
+  `truncheon/restrain` remain dead at 0%.

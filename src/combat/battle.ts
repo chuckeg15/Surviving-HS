@@ -26,6 +26,7 @@ import { settings } from '@/core/settings';
 import { Rng } from '@/core/rng';
 import { GameState } from '@/game/state';
 import { bus } from '@/core/events';
+import { ROSTER_ENCOUNTERS } from '@/combat/roster';
 
 // =====================================================================
 // DATA
@@ -122,7 +123,7 @@ export interface RevenantDef {
 
 const A = (a: Ability): Ability => a;
 
-const ABILITIES: Record<string, Ability> = {
+export const ABILITIES: Record<string, Ability> = {
   /**
    * The floor of the whole system. Coherence only regenerates when a turn
    * advances, so a player holding nothing affordable could press confirm
@@ -347,6 +348,7 @@ const sentinel: RevenantDef = {
 };
 
 export const ENCOUNTERS: Record<string, EncounterDef> = {
+  ...ROSTER_ENCOUNTERS,
   'tutorial-spar': {
     id: 'tutorial-spar', title: 'PRACTICE PROJECTION', enemy: secondLoom, opponent: 'cael',
     lossIsFatal: false, canFlee: true,
@@ -872,15 +874,22 @@ export class BattleScene implements Scene {
       }
       if (app.input.pressed('confirm')) {
         const ab = kit[this.abilityIndex];
+        // SEALED locks everything that is not a strike. A kit with NO strike
+        // ability at all (Tallyman is read + three disrupts) would therefore be
+        // locked out entirely and could only STEADY, forever. Sealing is
+        // pressure, not a removal of agency: if it would block the whole kit,
+        // it blocks nothing this turn.
+        const sealActive =
+          this.hasStatus(this.me, 'sealed') &&
+          this.me.def.abilities.some((a) => a.kind === 'strike');
         const blocked = (a: Ability) =>
-          a.cost > this.me.coherence ||
-          (this.hasStatus(this.me, 'sealed') && a.kind !== 'strike');
+          a.cost > this.me.coherence || (sealActive && a.kind !== 'strike');
         if (kit.every(blocked)) {
           this.msg('Nothing will hold. The projection steadies itself.');
           this.playerAct(app, ABILITIES.steady);
           return;
         }
-        const sealed = this.hasStatus(this.me, 'sealed') && ab.kind !== 'strike';
+        const sealed = sealActive && ab.kind !== 'strike';
         if (ab.cost > this.me.coherence || sealed) {
           audio.sfx('ui.error');
           this.msg(sealed ? 'Sealed. That part of the cast will not answer.' : 'Not enough coherence.');
