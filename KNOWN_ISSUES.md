@@ -131,9 +131,9 @@ flaky is worse than one that is known to be.
 ## Unreachable content is the recurring failure here
 
 Twice now, finished and correct content has shipped with nothing able to reach
-it: the chapter ending, and then all three new encounters. Both were caught by
-grepping for the id outside the file that defines it. That check belongs in the
-validator and is not there yet.
+it: the chapter ending, and then all three new encounters. Both were caught by grepping for the id outside the file that defines it.
+That check is now a tool: `npm run test:reach`. It reports one genuine finding
+and no false positives.
 
 `ivo-escalation` is still unreachable - it needs the duct-forcing path from
 CANON §6, which is not built.

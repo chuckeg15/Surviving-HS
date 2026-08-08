@@ -12,7 +12,8 @@
     "test": "node --test tests/unit/*.test.mjs",
     "test:e2e": "node tests/e2e/run.mjs",
     "shots": "node tools/capture.mjs",
-    "test:audio": "node tools/audiocheck.mjs"
+    "test:audio": "node tools/audiocheck.mjs",
+    "test:reach": "node tools/reachability.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"
