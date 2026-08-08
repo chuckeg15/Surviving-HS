@@ -9,7 +9,8 @@ import { PAL, mix } from '@/art/palette';
 import { ADVANCE, GLYPH_H, GLYPH_W, LINE_H, glyphRows, wrapText } from '@/art/font';
 import { VH, VW } from '@/core/screen';
 
-const ATLAS_CHARS = 127;
+/** Exclusive upper bound on cached codepoints. 0x7f (em dash) must be inside. */
+const ATLAS_CHARS = 128;
 
 /** Cached one-colour font atlases, keyed by css colour. */
 const atlasCache = new Map<string, HTMLCanvasElement>();
@@ -200,19 +201,28 @@ export class Painter {
     x: number,
     y: number,
     maxW: number,
-    o: TextOpts & { lineHeight?: number; maxLines?: number } = {},
+    o: TextOpts & { lineHeight?: number; maxLines?: number; ellipsis?: boolean } = {},
   ): number {
     const scale = Math.max(1, (o.scale ?? 1) | 0);
+    const cols = Math.floor(maxW / scale / ADVANCE);
     const lines = wrapText(s, maxW / scale);
     const lh = o.lineHeight ?? LINE_H * scale;
     const max = o.maxLines ?? lines.length;
+    const clipped = lines.length > max;
     let budget = o.limit ?? Infinity;
     let drawn = 0;
     for (let i = 0; i < Math.min(lines.length, max); i++) {
       if (budget <= 0) break;
-      const take = Math.min(lines[i].length, budget);
-      this.text(lines[i], x, y + i * lh, { ...o, limit: take });
-      budget -= lines[i].length;
+      let line = lines[i];
+      // A block that runs out of room mid-sentence should say so. Without the
+      // ellipsis the reader cannot tell a clamped blurb from a badly written
+      // one that simply stops.
+      if (o.ellipsis && clipped && i === max - 1) {
+        line = line.slice(0, Math.max(0, Math.min(line.length, cols - 3))).trimEnd() + '...';
+      }
+      const take = Math.min(line.length, budget);
+      this.text(line, x, y + i * lh, { ...o, limit: take });
+      budget -= line.length;
       drawn++;
     }
     return drawn;

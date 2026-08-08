@@ -472,8 +472,14 @@ export class CharCreateScene implements Scene {
     const wellY = 134;
     const wellH = VH - wellY - 16;
     p.panel(104, wellY, VW - 112, wellH, 'inset');
-    const blurbLines = Math.min(2, p.measureBlock(b.blurb, VW - 122));
-    p.textBlock(b.blurb, 109, wellY + 4, VW - 122, { color: PAL.bone0, maxLines: 2 });
+    // The blurb gets whatever rows the effects do not need, so a long blurb
+    // never eats a perk line and a short one never leaves a gap.
+    const blurbMax = Math.max(1, Math.floor((wellH - 6) / 9) - b.effects.length);
+    const blurbLines = p.textBlock(b.blurb, 109, wellY + 4, VW - 122, {
+      color: PAL.bone0,
+      maxLines: blurbMax,
+      ellipsis: true,
+    });
     let ey = wellY + 6 + blurbLines * 9;
     for (const e of b.effects) {
       if (ey + 8 > wellY + wellH) break;

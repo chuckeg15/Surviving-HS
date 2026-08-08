@@ -54,6 +54,10 @@ const GLYPHS: Record<string, string> = {
   '\x0A': '0HA4AH00', // cross        - contradiction marker
   '\x0B': '012K8000', // check        - resolved marker
   '\x0C': '0VHHHV00', // hollow square - unchecked box
+  // Em dash. The content files have used \x7f as a dash from the beginning,
+  // but the glyph was never authored, so every one of them rendered as a hole
+  // in the middle of a sentence.
+  '\x7f': '000V0000',
 };
 
 export const GLYPH_W = 5;
