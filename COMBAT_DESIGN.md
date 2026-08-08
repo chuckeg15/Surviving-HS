@@ -237,13 +237,39 @@ kinetic. She is procedural rather than strong, so it reads.
 - **`ABILITIES` was not exported**, so enemy content had to duplicate ability
   definitions and would drift the first time one was retuned. Now exported.
 
+### The two weak kits, fixed
+
+Lampwright and Tallyman lost every kinetic matchup 100% of the time. Diagnosis:
+neither kit had a guard, and neither had a strike the aspect wheel liked, so
+their throughput was about 6 and 5 a turn.
+
+Three changes, each aimed at a measured cause rather than at the symptom:
+
+| Change | Why |
+|---|---|
+| `AUDIT` becomes Tallyman's guard (0.45 mitigation, +3 coherence) | It measured **dead at 0%** for the whole balance pass, and Tallyman had no brace at all. One change fixed both |
+| `STRIKE RECORD` 8 → 11 power | Tallyman's best line was 8 a turn |
+| `DENY` 9 → 12 power | Its only *unresisted* line into a field enemy was a 9-power disrupt |
+| `TRACTION` 11 → 12 power | Lampwright's only unresisted line into a kinetic enemy. 13 overshot — it went from always losing the boss to always winning with half its integrity left, so it came back down |
+
+| Metric | Before | After |
+|---|---|---|
+| Boss, considered | 66% | **70%** (target 55–80) |
+| Boss, random | 27% | **29%** (target <35) |
+| Per-cast boss spread | 100/63/**22**/100/43 | 100/68/**37**/100/43 |
+| Casts at 0% vs a kinetic enemy | **2** | **0** |
+| gantry-minder, considered | 48% | **88%** |
+| ivo-bailiff, considered | 60% | **80%** |
+
 ### Still wrong
 
-- **Lampwright and Tallyman lose the minder, and the shipped Bailiff, 100% of
-  the time.** Against a kinetic cast their throughput is about 6 and 5 a turn:
-  neither kit has a guard, and neither has a strike the aspect wheel likes.
-  This is not fixable in enemy data — the fix is in those two kits in
-  `battle.ts`, and it is the top open combat defect.
+- **`tallyman/audit` still measures 0%**, but this one is partly a measurement
+  artefact: the `considered` policy only reaches for a guard when it cannot
+  afford its cheapest strike, which almost never happens now. A real player
+  guards for reasons a policy does not model. Recorded, not "fixed" by tuning
+  the policy until the number moved.
+- **Grey Liner and Truncheon still win the boss 100%** — though with 5% and 17%
+  integrity left, so they are close fights that happen to go one way.
 - **Kiln and Truncheon are still mono-aspect on offence**, so thermal and
   corrosive enemies are unusable against them. That is why the maintenance
   construct is kinetic despite corrosive being the better image for it.

@@ -120,6 +120,14 @@ Decks A and F are not built. Their lift stops are gated behind flags that
 nothing sets, because listing a stop that would crash is worse than not
 listing it.
 
+## The playtest is not perfectly deterministic
+
+The door-transition check is timing-dependent and has been seen to fail once
+and pass on an immediate re-run with no code change. It walks the player toward
+a door for a fixed number of frames; under load it occasionally does not
+arrive. Recorded rather than papered over, because a suite that is quietly
+flaky is worse than one that is known to be.
+
 ## Combat balance
 
 A measured pass has been run (`node tools/balance.mjs`, see COMBAT_DESIGN.md).

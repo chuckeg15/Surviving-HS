@@ -165,7 +165,7 @@ export const ABILITIES: Record<string, Ability> = {
     inflict: { status: 'frayed', turns: 3, chance: 0.5 },
   }),
   'traction': A({
-    id: 'traction', name: 'TRACTION', kind: 'strike', aspect: 'kinetic', cost: 3, power: 11,
+    id: 'traction', name: 'TRACTION', kind: 'strike', aspect: 'kinetic', cost: 3, power: 12,
     desc: 'Sets the projection against itself. Anchored.',
     inflict: { status: 'anchored', turns: 3, chance: 0.9 },
   }),
@@ -204,12 +204,17 @@ export const ABILITIES: Record<string, Ability> = {
     desc: 'Reads the cast and its remaining coherence exactly.',
   }),
   'strike-record': A({
-    id: 'strike-record', name: 'STRIKE RECORD', kind: 'disrupt', aspect: 'cognitive', cost: 3, power: 8,
+    id: 'strike-record', name: 'STRIKE RECORD', kind: 'disrupt', aspect: 'cognitive', cost: 3, power: 11,
     desc: 'Erases part of what the cast knows how to do. Sealed.',
     inflict: { status: 'sealed', turns: 3, chance: 0.85 },
   }),
+  // Was a 4-power disrupt and measured dead at 0% for the entire balance pass.
+  // Tallyman also had no guard at all, which is why it lost every kinetic
+  // matchup 100% of the time. One change fixes both: AUDIT is now the kit's
+  // brace, and still does enough to be worth the turn.
   'audit': A({
-    id: 'audit', name: 'AUDIT', kind: 'disrupt', aspect: 'cognitive', cost: 2, power: 4,
+    id: 'audit', name: 'AUDIT', kind: 'guard', aspect: 'cognitive', cost: 2, power: 4,
+    selfBuff: { guard: 0.45, coherence: 3 },
     desc: 'Drains coherence hard. Damage is incidental.',
     inflict: { status: 'frayed', turns: 4, chance: 0.9 },
   }),
@@ -233,7 +238,7 @@ export const ABILITIES: Record<string, Ability> = {
   }),
   // --- enemy kit -------------------------------------------------------
   'deny': A({
-    id: 'deny', name: 'DENY', kind: 'disrupt', aspect: 'field', cost: 2, power: 9,
+    id: 'deny', name: 'DENY', kind: 'disrupt', aspect: 'field', cost: 2, power: 12,
     desc: 'Refuses the projection. Static.',
     inflict: { status: 'static', turns: 2, chance: 0.7 },
   }),
