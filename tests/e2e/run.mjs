@@ -162,7 +162,8 @@ async function main() {
   await key('KeyC');
   await page.waitForTimeout(400);
   check('opens pause', (await probe()).scene === 'pause');
-  await key('ArrowDown', 2);
+  // RESUME, EVIDENCE, KIT, SETTINGS — this count has to track the pause menu.
+  await key('ArrowDown', 3);
   await key('KeyZ');
   await page.waitForTimeout(500);
   check('opens settings', (await probe()).scene === 'settings');

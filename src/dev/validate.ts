@@ -12,6 +12,7 @@
 import { ROOMS } from '@/data/rooms';
 import { NPCS } from '@/data/npcs';
 import { CLUES, DEDUCTIONS, INTERACTABLES, BACKGROUNDS } from '@/data/content';
+import { ITEMS } from '@/data/items';
 import { ENCOUNTERS, TESSERAE } from '@/combat/battle';
 import { getTileAtlas } from '@/art/tiles';
 import { buildRoom } from '@/world/map';
@@ -68,6 +69,37 @@ export function validateContent(): ValidationReport {
   }
   for (const id of Object.keys(CLUES)) {
     if (!granted.has(id)) warnings.push(`clue "${id}" is never granted by any content path`);
+  }
+
+  // --- items ------------------------------------------------------------
+  //
+  // Both directions matter and neither is visible to the type checker: an id
+  // the game hands out with no table entry renders in the kit list as a raw
+  // string, and an entry nothing hands out is a description no player will ever
+  // be shown. The grant sites are the background kits plus every literal
+  // addItem() call in the content and scene source.
+  const grantedItems = new Set<string>();
+  for (const b of BACKGROUNDS) for (const it of b.items) grantedItems.add(it);
+  const itemGrantText = [
+    ...Object.values(INTERACTABLES).map((i) => i.run.toString()),
+    ...Object.values(NPCS).flatMap((n) =>
+      Object.values(n.dialogue.nodes).flatMap((node) => [
+        node.onEnter?.toString() ?? '',
+        ...(node.choices ?? []).map((c) => c.do?.toString() ?? ''),
+      ]),
+    ),
+    // explore.ts grants trave-key off a returned flag rather than in a run()
+    // body, so the source scan cannot see it.
+    "addItem('trave-key')",
+  ].join('\n');
+  for (const m of itemGrantText.matchAll(/addItem\(\s*['"]([a-z0-9-]+)['"]/g)) {
+    grantedItems.add(m[1]);
+  }
+  for (const id of grantedItems) {
+    if (!ITEMS[id]) errors.push(`item "${id}" is granted but has no entry in the item table`);
+  }
+  for (const id of Object.keys(ITEMS)) {
+    if (!grantedItems.has(id)) errors.push(`item "${id}" is defined but nothing in the game grants it`);
   }
 
   // --- rooms ------------------------------------------------------------
@@ -164,6 +196,7 @@ export function validateContent(): ValidationReport {
       clues: Object.keys(CLUES).length,
       deductions: Object.keys(DEDUCTIONS).length,
       interactables: Object.keys(INTERACTABLES).length,
+      items: Object.keys(ITEMS).length,
       backgrounds: BACKGROUNDS.length,
       tesserae: Object.keys(TESSERAE).length,
       encounters: Object.keys(ENCOUNTERS).length,

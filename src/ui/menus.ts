@@ -33,43 +33,8 @@ import { BACKGROUNDS, CLUES, DEDUCTIONS, availableDeductions, reconcile, satisfi
 import { NPCS } from '@/data/npcs';
 import { allSlots, formatPlaytime, loadSlot, writeSlot, SLOT_COUNT } from '@/game/save';
 import { ACTIONS, keyLabel } from '@/core/input';
-
-// =====================================================================
-// shared list helper
-// =====================================================================
-
-class Cursor {
-  index = 0;
-  constructor(public length: number) {}
-  move(_app: App, by: number): boolean {
-    if (this.length <= 0) return false;
-    const n = (this.index + by + this.length) % this.length;
-    if (n === this.index) return false;
-    this.index = n;
-    audio.sfx('ui.move');
-    return true;
-  }
-  nav(app: App): void {
-    if (app.input.repeated('down')) this.move(app, 1);
-    if (app.input.repeated('up')) this.move(app, -1);
-  }
-  clamp(): void {
-    if (this.index >= this.length) this.index = Math.max(0, this.length - 1);
-  }
-}
-
-function header(p: Painter, title: string, sub?: string): void {
-  p.rect(0, 0, VW, 20, PAL.void1);
-  p.rect(0, 20, VW, 1, PAL.halo1);
-  p.text(title, 8, 6, { color: PAL.halo3 });
-  if (sub) p.text(sub, VW - 8, 6, { color: PAL.iron5, align: 'right' });
-}
-
-function footer(p: Painter, hints: string[]): void {
-  p.rect(0, VH - 12, VW, 12, PAL.void1);
-  p.rect(0, VH - 13, VW, 1, PAL.iron1);
-  p.text(hints.join('   '), 8, VH - 9, { color: PAL.iron5 });
-}
+import { Cursor, footer, header } from '@/ui/widgets';
+import { KitScene } from '@/ui/inventory';
 
 // =====================================================================
 // TITLE
@@ -519,7 +484,7 @@ export function openJournal(app: App): void {
 export class PauseScene implements Scene {
   readonly id = 'pause';
   readonly modal = true;
-  private cursor = new Cursor(5);
+  private cursor = new Cursor(6);
   private saved = false;
 
   constructor(private back: Scene) {
@@ -543,14 +508,17 @@ export class PauseScene implements Scene {
           app.push(new JournalScene());
           break;
         case 2:
-          app.push(new SettingsScene());
+          app.push(new KitScene());
           break;
         case 3:
+          app.push(new SettingsScene());
+          break;
+        case 4:
           writeSlot(1, app.state);
           this.saved = true;
           app.toast('Saved to slot 1', '\x0B', PAL.halo3);
           break;
-        case 4:
+        case 5:
           app.transition(new TitleScene());
           break;
       }
@@ -560,7 +528,14 @@ export class PauseScene implements Scene {
 
   draw(app: App, p: Painter): void {
     p.scrim(PAL.void0, 0.72);
-    const items = ['RESUME', 'EVIDENCE', 'SETTINGS', this.saved ? 'SAVED' : 'SAVE', 'ABANDON WATCH'];
+    const items = [
+      'RESUME',
+      'EVIDENCE',
+      'KIT',
+      'SETTINGS',
+      this.saved ? 'SAVED' : 'SAVE',
+      'ABANDON WATCH',
+    ];
     const w = 120;
     const h = items.length * 13 + 34;
     const x = (VW - w) / 2;
