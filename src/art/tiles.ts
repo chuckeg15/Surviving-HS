@@ -1123,7 +1123,14 @@ function drawTable(s: Surface): void {
   hline(s, 0, 11, 16, PAL.iron1);
   rect(s, 0, 12, 16, 2, PAL.iron1); // front edge
   dither(s, 0, 5, 16, 5, PAL.iron2, 1); // brushed grain
-  contact(s, 0, 16, 14);
+  // The end cap called keyline() and this segment did not, so a table run was
+  // outlined at its cap and nowhere along its length \x7f which is why the
+  // middle of a table read as a flat grey slab lying on the deck. The top and
+  // bottom edges are darkened here rather than the sides, because the sides of
+  // a middle segment must stay open to butt against its neighbours.
+  hline(s, 0, 2, 16, PAL.void1);
+  hline(s, 0, 14, 16, PAL.void1);
+  contact(s, 0, 16, 15);
 }
 
 function drawTableEnd(s: Surface): void {
