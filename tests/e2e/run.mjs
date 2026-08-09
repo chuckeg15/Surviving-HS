@@ -177,10 +177,22 @@ async function main() {
   await key('KeyX');
   await page.waitForTimeout(300);
 
-  // walking out of the berth: the door is in the bottom wall
-  await hold('ArrowDown', 2200);
-  await page.waitForTimeout(1400);
-  const moved = await probe();
+  // Walking out of the berth. The door is a two-tile gap in the bottom wall,
+  // and which column the earlier holds left the player standing on is a
+  // property of the movement model, not of the door — a fixed hold that used
+  // to land on the door landed one tile beside it the moment stepping became
+  // tile-quantised. So this walks into the bottom wall and, if the wall answers
+  // instead of the door, sidesteps a widening distance and comes at it again.
+  // A player does exactly this without noticing. What is under test is that
+  // walking into a door goes through it, not that one key sequence does.
+  let moved = await probe();
+  for (let i = 0; i < 6 && moved.room === before; i++) {
+    await hold('ArrowDown', 2200);
+    await page.waitForTimeout(1400);
+    moved = await probe();
+    if (moved.room !== before) break;
+    await hold(i % 2 ? 'ArrowRight' : 'ArrowLeft', 300 + 260 * i);
+  }
   check('walked through a door into a new room', moved.room !== before, `${before} -> ${moved.room}`);
   check('does not bounce straight back through the door', (await probe()).room === moved.room);
   await shot('05-corridor');

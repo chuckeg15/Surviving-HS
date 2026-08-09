@@ -49,7 +49,11 @@ export interface TextOpts {
   /** Integer scale for headings. Keeps pixels square. */
   scale?: number;
   align?: 'left' | 'center' | 'right';
-  /** Render only the first N characters (for typewriter reveal). */
+  /**
+   * Render only the first N characters. Counted after wrapping, so a caller
+   * driving a reveal must count the same way \x7f see TextReveal in
+   * game/dialogue.ts, which owns that arithmetic for every box in the game.
+   */
   limit?: number;
   /** Extra pixels between characters. */
   tracking?: number;
@@ -166,6 +170,8 @@ export class Painter {
     const limit = o.limit ?? s.length;
     const shown = limit >= s.length ? s : s.slice(0, Math.max(0, limit | 0));
     const w = shown.length * adv;
+    // Alignment measures the whole string, not the revealed part, so a line
+    // being typed out stays where it started instead of sliding under the eye.
     let ox = x | 0;
     if (o.align === 'center') ox = (x - (s.length * adv) / 2) | 0;
     else if (o.align === 'right') ox = (x - s.length * adv) | 0;

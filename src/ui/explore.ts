@@ -13,7 +13,7 @@ import { LINE_H, Painter } from '@/ui/painter';
 import { TILE, VH, VW } from '@/core/screen';
 import { PAL, mix } from '@/art/palette';
 import { CELL_H, CELL_W, Expression, FACING_ROW, Facing, getPortrait } from '@/art/actors';
-import { Actor, NpcBrain, RUN_SPEED, WALK_SPEED } from '@/world/actor';
+import { Actor, NpcBrain, RUN_STEP, WALK_STEP } from '@/world/actor';
 import {
   BuiltRoom,
   buildRoom,
@@ -46,6 +46,40 @@ interface NpcInstance {
 
 type Mode = 'walk' | 'examine' | 'dialogue';
 
+/**
+ * What a confirm press would reach.
+ *
+ * The hint and the action used to derive their target separately \x7f
+ * drawInteractHint from one search, interact() from its own copy of the same
+ * logic. Two searches that are meant to agree eventually do not, and the
+ * failure mode is the worst kind: the game labels one object and activates a
+ * different one. There is now a single findTarget(), and both the label and
+ * the press read it.
+ */
+type Target =
+  | { kind: 'npc'; id: string; x: number; y: number; label: string }
+  | { kind: 'thing'; id: string; x: number; y: number; label: string };
+
+function npcTarget(n: NpcInstance): Target {
+  return {
+    kind: 'npc',
+    id: n.id,
+    x: n.actor.x,
+    y: n.actor.y,
+    label: NPCS[n.id]?.name ?? n.id.toUpperCase(),
+  };
+}
+
+function thingTarget(it: { id: string; x: number; y: number }): Target {
+  return {
+    kind: 'thing',
+    id: it.id,
+    x: it.x * TILE + 8,
+    y: it.y * TILE + 8,
+    label: INTERACTABLES[it.id]?.label ?? it.id,
+  };
+}
+
 export class ExploreScene implements Scene {
   readonly id = 'explore';
   private room!: BuiltRoom;
@@ -66,7 +100,7 @@ export class ExploreScene implements Scene {
 
   // presentation
   private bannerTimer = 0;
-  private hintTarget: { x: number; y: number; label: string } | null = null;
+  private hintTarget: Target | null = null;
   /**
    * A door's arrival spawn is the door tile itself, so without this the player
    * would land on a door and be sent straight back where they came from. The
@@ -121,27 +155,23 @@ export class ExploreScene implements Scene {
     audio.setAmbience(def.ambience, 1.2);
     if (def.music) audio.setMusic(def.music, { fade: 1.5 });
 
-    // player placement
+    // Player placement, in tiles: with quantised movement a spawn is a tile,
+    // never a pixel, so there is no arrival that lands anyone off the grid.
     const s = app.state;
-    let px = s.x;
-    let py = s.y;
     const point = spawn ? this.room.spawns[spawn] : this.room.spawns['default'];
-    if (spawn || !this.player) {
-      const p = point ?? this.room.spawns['default'] ?? { x: 2, y: 2 };
-      px = p.x * TILE + TILE / 2;
-      py = p.y * TILE + TILE;
-    }
+    const p = point ?? this.room.spawns['default'] ?? { x: 2, y: 2 };
+    const tx = spawn || !this.player ? p.x : this.player.tileX;
+    const ty = spawn || !this.player ? p.y : this.player.tileY;
     if (!this.player) {
-      this.player = new Actor({ id: PLAYER_KEY, look: s.profile.look, x: px, y: py });
+      this.player = new Actor({ id: PLAYER_KEY, look: s.profile.look, tileX: tx, tileY: ty });
     } else {
-      this.player.x = px;
-      this.player.y = py;
+      this.player.placeAt(tx, ty);
     }
     this.player.look = s.profile.look;
     app.sheetRegion(PLAYER_KEY, s.profile.look);
 
     s.room = roomId;
-    this.doorCooldown = { x: Math.floor(px / TILE), y: Math.floor((py - 1) / TILE) };
+    this.doorCooldown = { x: tx, y: ty };
     this.npcs = [];
     this.crewDirty = false;
     this.syncNpcs(app);
@@ -179,14 +209,14 @@ export class ExploreScene implements Scene {
         id: def.id,
         name: def.name,
         look: def.look,
-        x: post[0] * TILE + TILE / 2,
-        y: post[1] * TILE + TILE,
+        tileX: post[0],
+        tileY: post[1],
         facing: 'down',
       });
       this.npcs.push({
         id: def.id,
         actor,
-        brain: new NpcBrain(actor.x, actor.y, 22),
+        brain: new NpcBrain(post[0], post[1], 2),
         regionKey: key,
       });
       bus.emit('npc:moved', { id, room: s.room });
@@ -204,9 +234,13 @@ export class ExploreScene implements Scene {
       this.syncNpcs(app);
     }
 
+    // A step already begun always finishes, whatever mode the scene is in.
+    // Someone spoken to mid-stride must still land on the grid.
+    const landed = this.player.advance(dt);
+
     if (this.mode === 'dialogue') this.updateDialogue(app, dt);
     else if (this.mode === 'examine') this.updateExamine(app, dt);
-    else this.updateWalk(app, dt);
+    else this.updateWalk(app, landed);
 
     for (const n of this.npcs) {
       if (this.mode === 'walk') n.brain.update(n.actor, this.room, dt);
@@ -217,7 +251,7 @@ export class ExploreScene implements Scene {
     this.submitDraw(app);
   }
 
-  private updateWalk(app: App, dt: number): void {
+  private updateWalk(app: App, landed: boolean): void {
     const input = app.input;
     const st = settings.get();
 
@@ -236,39 +270,31 @@ export class ExploreScene implements Scene {
       return;
     }
 
-    const ax = input.axis();
     const running = st.runMode === 'hold' ? input.down('run') : app.state.has('run-toggled');
     if (st.runMode === 'toggle' && input.pressed('run')) {
       app.state.setFlag('run-toggled', !app.state.has('run-toggled'));
     }
-    const speed = running ? RUN_SPEED : WALK_SPEED;
-    this.player.move(this.room, ax.x, ax.y, speed, dt);
 
-    if (this.player.consumeStep()) {
-      audio.sfx(`step.${stepSoundAt(this.room, this.player.tileX, this.player.tileY)}` as never, {
-        pitch: 0.94 + Math.random() * 0.12,
-        gain: running ? 0.9 : 0.65,
-      });
-    }
+    // A door the player has no clearance for is not a destination, it is a
+    // wall — refusing entry before the step means there is nothing to shove
+    // them back off afterwards.
+    const shut = (x: number, y: number): boolean => {
+      const door = doorAt(this.room, x, y);
+      return !!(door?.locked && !clearancesOf(app.state).includes(door.locked));
+    };
 
-    // doors trigger on standing over them
+    // Doors fire on arriving at the tile, or on resting there. A door the
+    // player is merely crossing off must not fire, and one they land on while
+    // still holding the key must, or a held walk sails straight past it.
     if (
       this.doorCooldown &&
       (this.doorCooldown.x !== this.player.tileX || this.doorCooldown.y !== this.player.tileY)
     ) {
       this.doorCooldown = null;
     }
-    const d = this.doorCooldown ? undefined : doorAt(this.room, this.player.tileX, this.player.tileY);
-    if (d) {
-      if (d.locked && !clearancesOf(app.state).includes(d.locked)) {
-        if (!app.state.has(`refused:${d.to}`)) {
-          app.state.setFlag(`refused:${d.to}`, true);
-          audio.sfx('door.locked');
-          this.showLines([d.refuse ?? 'It does not open for you.']);
-          // push the player back off the door so it does not retrigger
-          this.player.y += this.player.facing === 'up' ? TILE : -TILE * 0.4;
-        }
-      } else {
+    if (!this.doorCooldown && (landed || !this.player.moving)) {
+      const d = doorAt(this.room, this.player.tileX, this.player.tileY);
+      if (d && !shut(d.x, d.y)) {
         audio.sfx('door.open');
         const to = d.to;
         const spawn = d.spawn;
@@ -281,30 +307,62 @@ export class ExploreScene implements Scene {
       }
     }
 
+    const outcome = this.player.steer(
+      this.room,
+      input.direction(),
+      running ? RUN_STEP : WALK_STEP,
+      shut,
+    );
+    if (outcome === 'walk') {
+      audio.sfx(`step.${stepSoundAt(this.room, this.player.tileX, this.player.tileY)}` as never, {
+        pitch: 0.94 + Math.random() * 0.12,
+        gain: running ? 0.9 : 0.65,
+      });
+    } else if (outcome === 'bump') {
+      const f = this.player.facingTile();
+      const locked = doorAt(this.room, f.x, f.y);
+      if (locked?.locked) {
+        app.state.setFlag(`refused:${locked.to}`, true);
+        audio.sfx('door.locked');
+        this.showLines([locked.refuse ?? 'It does not open for you.']);
+        return;
+      }
+      // Walking into a wall answers back: the surface underfoot, pitched down
+      // to a scuff. Silence here reads as a dropped input.
+      audio.sfx(`step.${stepSoundAt(this.room, this.player.tileX, this.player.tileY)}` as never, {
+        pitch: 0.6,
+        gain: 0.5,
+      });
+    }
+
     // interaction target
-    this.hintTarget = this.findTarget(app);
+    this.hintTarget = this.findTarget();
     if (input.pressed('confirm') && this.hintTarget) {
-      this.interact(app);
+      this.interact(app, this.hintTarget);
     }
   }
 
-  private findTarget(app: App): { x: number; y: number; label: string } | null {
+  /**
+   * What confirm would reach.
+   *
+   * The faced tile wins outright. Turn-in-place makes aiming at one specific
+   * tile a tap, so a crewmate standing beside the player must no longer shadow
+   * the terminal they are squarely looking at — which is what happened while
+   * proximity to a person was checked first, and it made whole rooms
+   * unexaminable whenever somebody was on shift in them.
+   */
+  private findTarget(): Target | null {
     const f = this.player.facingTile();
     for (const n of this.npcs) {
-      if (n.actor.tileX === f.x && n.actor.tileY === f.y) {
-        return { x: n.actor.x, y: n.actor.y, label: NPCS[n.id].name };
-      }
-      // also allow talking to someone standing on the same tile band nearby
-      if (this.player.distanceTo(n.actor) < 20) {
-        return { x: n.actor.x, y: n.actor.y, label: NPCS[n.id].name };
-      }
+      if (n.actor.tileX === f.x && n.actor.tileY === f.y) return npcTarget(n);
     }
-    const it = interactAt(this.room, f.x, f.y) ?? this.nearestInteractable();
-    if (it) {
-      const def = INTERACTABLES[it.id];
-      return { x: it.x * TILE + 8, y: it.y * TILE + 12, label: def?.label ?? 'Examine' };
+    const faced = interactAt(this.room, f.x, f.y) ?? this.nearestInteractable();
+    if (faced) return thingTarget(faced);
+    // Nothing aimed at: talking to whoever is at the player's elbow is the
+    // likeliest intent left.
+    for (const n of this.npcs) {
+      if (this.player.distanceTo(n.actor) < 20) return npcTarget(n);
     }
-    void app;
     return null;
   }
 
@@ -328,20 +386,17 @@ export class ExploreScene implements Scene {
     return best;
   }
 
-  private interact(app: App): void {
-    const f = this.player.facingTile();
+  private interact(app: App, t: Target): void {
     this.player.act();
-    for (const n of this.npcs) {
-      const near = this.player.distanceTo(n.actor) < 20;
-      if ((n.actor.tileX === f.x && n.actor.tileY === f.y) || near) {
-        n.actor.faceTowards(this.player.x, this.player.y);
-        n.brain.freeze();
-        this.startDialogue(app, n.id);
-        return;
-      }
+    if (t.kind === 'npc') {
+      const n = this.npcs.find((x) => x.id === t.id);
+      if (!n) return;
+      n.actor.faceTowards(this.player.x, this.player.y);
+      n.brain.freeze();
+      this.startDialogue(app, n.id);
+      return;
     }
-    const it = interactAt(this.room, f.x, f.y) ?? this.nearestInteractable();
-    if (!it) return;
+    const it = { id: t.id };
     const def = INTERACTABLES[it.id];
     if (!def) return;
     const res = def.run(app.state);
@@ -521,16 +576,24 @@ export class ExploreScene implements Scene {
     }
   }
 
-  private submitDraw(app: App): void {
-    // camera follows, clamped so we never show void past the room edge
-    const halfW = VW / 2;
-    const halfH = VH / 2;
-    let cx = this.player.x - halfW;
-    let cy = this.player.y - halfH - 8;
+  /**
+   * Camera follow, clamped so we never show void past the room edge, and
+   * snapped to whole pixels. The renderer rounds the camera before it places
+   * the tile layers; anything drawn against an unrounded copy of it would
+   * shear against the floor by a pixel on half the frames.
+   */
+  private camera(): { x: number; y: number } {
+    let cx = this.player.x - VW / 2;
+    let cy = this.player.y - VH / 2 - 8;
     cx = Math.max(0, Math.min(this.room.pixelW - VW, cx));
     cy = Math.max(0, Math.min(this.room.pixelH - VH, cy));
     if (this.room.pixelW < VW) cx = (this.room.pixelW - VW) / 2;
     if (this.room.pixelH < VH) cy = (this.room.pixelH - VH) / 2;
+    return { x: Math.round(cx), y: Math.round(cy) };
+  }
+
+  private submitDraw(app: App): void {
+    const { x: cx, y: cy } = this.camera();
     app.renderer.setCamera(cx, cy);
 
     for (const l of this.room.lights) app.renderer.addLight(l);
@@ -540,8 +603,8 @@ export class ExploreScene implements Scene {
       if (!reg || !a.visible) return;
       const row = FACING_ROW[a.facing as Facing];
       app.renderer.drawSprite({
-        x: Math.round(a.x - CELL_W / 2 - cx),
-        y: Math.round(a.y - CELL_H - cy) + a.bobOffset,
+        x: Math.round(a.x - CELL_W / 2) - cx + a.leanX,
+        y: Math.round(a.y - CELL_H) - cy + a.bobOffset + a.leanY,
         w: CELL_W,
         h: CELL_H,
         sx: reg.x + a.pose * CELL_W,
@@ -567,12 +630,7 @@ export class ExploreScene implements Scene {
 
   private drawInteractHint(_app: App, p: Painter): void {
     if (!this.hintTarget) return;
-    const halfW = VW / 2;
-    const halfH = VH / 2;
-    let cx = this.player.x - halfW;
-    let cy = this.player.y - halfH - 8;
-    cx = Math.max(0, Math.min(this.room.pixelW - VW, cx));
-    cy = Math.max(0, Math.min(this.room.pixelH - VH, cy));
+    const { x: cx, y: cy } = this.camera();
     const sx = Math.round(this.hintTarget.x - cx);
     const sy = Math.round(this.hintTarget.y - cy);
     const bob = Math.sin(this.animTime * 6) > 0 ? 0 : 1;

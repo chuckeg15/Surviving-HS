@@ -110,22 +110,36 @@ export function textWidth(s: string): number {
   return s.length * ADVANCE;
 }
 
+/** Longest tail word still treated as an orphan worth pulling a partner down to. */
+const ORPHAN_MAX = 8;
+
 /**
  * Word-wrap to a pixel width, honouring explicit '\n'. Returns lines.
  * Long unbreakable words are hard-split rather than overflowing the box.
+ *
+ * Wrapping is pure and deterministic: the same string and width always give
+ * the same lines, which is what lets a box be measured before it is drawn and
+ * lets a typewriter reveal count characters against lines that will not move
+ * under it.
  */
 export function wrapText(s: string, maxPx: number): string[] {
   const maxChars = Math.max(1, Math.floor(maxPx / ADVANCE));
   const out: string[] = [];
   for (const para of s.split('\n')) {
-    if (para.length === 0) {
+    // Runs of spaces are collapsed rather than wrapped on: a double space in a
+    // content file used to become a leading space on the next line.
+    const words = para.split(' ').filter(Boolean);
+    if (!words.length) {
       out.push('');
       continue;
     }
+    const start = out.length;
+    let hardSplit = false;
     let line = '';
-    for (const word of para.split(' ')) {
+    for (const word of words) {
       let w = word;
       while (w.length > maxChars) {
+        hardSplit = true;
         if (line) {
           out.push(line);
           line = '';
@@ -133,6 +147,7 @@ export function wrapText(s: string, maxPx: number): string[] {
         out.push(w.slice(0, maxChars));
         w = w.slice(maxChars);
       }
+      if (!w) continue;
       if (!line) line = w;
       else if (line.length + 1 + w.length <= maxChars) line += ' ' + w;
       else {
@@ -140,9 +155,34 @@ export function wrapText(s: string, maxPx: number): string[] {
         line = w;
       }
     }
-    out.push(line);
+    if (line) out.push(line);
+    // A hard-split paragraph ends on a fragment, not a word; pulling another
+    // fragment down beside it would only make the break harder to read.
+    if (!hardSplit) deorphan(out, start, maxChars);
   }
   return out;
+}
+
+/**
+ * Pulls one word down when a paragraph ends on a lone short word.
+ *
+ * A single word stranded under a full line reads as a fault in the renderer
+ * rather than a sentence, and in a box that sizes itself to its content it
+ * spends a whole line of height on one word. Line count never changes, so
+ * anything that measured the block before drawing it stays correct.
+ */
+function deorphan(out: string[], start: number, maxChars: number): void {
+  const last = out.length - 1;
+  if (last - start < 1) return;
+  const tail = out[last];
+  if (tail.includes(' ') || tail.length > Math.min(ORPHAN_MAX, Math.floor(maxChars / 3))) return;
+  const prev = out[last - 1];
+  const cut = prev.lastIndexOf(' ');
+  if (cut < 0) return; // the line above is one word; moving it would empty it
+  const moved = prev.slice(cut + 1);
+  if (moved.length + 1 + tail.length > maxChars) return;
+  out[last - 1] = prev.slice(0, cut);
+  out[last] = `${moved} ${tail}`;
 }
 
 /** Number of glyph cells that fit in a pixel width. */

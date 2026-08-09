@@ -2,9 +2,10 @@
  * Input manager: keyboard + gamepad, remappable, with edge detection and
  * delayed auto-repeat for menus.
  *
- * Movement deliberately reads *held* state every frame and never queues, so a
- * key release stops the character on the same frame — the classic cause of
- * "floaty" top-down movement is polling on an interval instead of per frame.
+ * Movement reads *held* state every frame, and asks for the direction most
+ * recently pressed rather than a blended axis. Tile-stepped movement commits to
+ * one direction at a time, so a player rolling a thumb across the pad must end
+ * up going the way they finished, not the way they started.
  */
 
 export const ACTIONS = [
@@ -22,6 +23,10 @@ export const ACTIONS = [
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];
+
+/** The four movement actions, as their own type — a step has one direction. */
+export type Dir = 'up' | 'down' | 'left' | 'right';
+const DIRS: Dir[] = ['up', 'down', 'left', 'right'];
 
 export type Binding = Record<Action, string[]>;
 
@@ -263,11 +268,16 @@ export class Input {
       if (!this.virtual.has(a)) {
         this.virtual.add(a);
         this.held.add(a);
+        // Latch the press exactly as a key does. Without it every scene that
+        // reads `pressed` — which is all of them, for confirm and cancel —
+        // sees the on-screen buttons as a key that was never struck.
+        this.latchedPress.add(a);
         this.repeatTimer.set(a, REPEAT_DELAY);
       }
     } else {
       this.virtual.delete(a);
       this.held.delete(a);
+      this.latchedRelease.add(a);
       this.repeatTimer.delete(a);
     }
   }
@@ -301,6 +311,23 @@ export class Input {
   anyPressed(): boolean {
     for (const a of ACTIONS) if (this.pressed(a)) return true;
     return false;
+  }
+
+  /**
+   * The single direction the player is asking to go, or null.
+   *
+   * A press this frame wins over anything merely still held, and among equals
+   * the newest wins — `held` is a Set, so it is already in press order. That
+   * ordering is what lets a player change direction mid-corridor by pressing
+   * the new key before releasing the old one, which is how everybody actually
+   * holds a d-pad.
+   */
+  direction(): Dir | null {
+    let latest: Dir | null = null;
+    for (const a of this.latchedPress) if (DIRS.includes(a as Dir)) latest = a as Dir;
+    if (latest) return latest;
+    for (const a of this.held) if (DIRS.includes(a as Dir)) latest = a as Dir;
+    return latest;
   }
 
   /** -1/0/1 pair from the held direction keys. */

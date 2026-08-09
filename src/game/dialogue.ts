@@ -16,6 +16,11 @@
 
 import { GameState } from '@/game/state';
 import type { Expression } from '@/art/actors';
+import { LINE_H, wrapText } from '@/art/font';
+import { PAL } from '@/art/palette';
+import { Painter, type TextOpts } from '@/ui/painter';
+import { settings, TEXT_CPS } from '@/core/settings';
+import { audio } from '@/core/audio';
 
 export type Tone =
   | 'neutral'
@@ -188,4 +193,249 @@ export class DialogueRunner {
 
 function choiceKey(nodeId: string, c: DlgChoice): string {
   return `${nodeId}#${c.text.slice(0, 24)}`;
+}
+
+/**
+ * Extra beat held after a mark, in seconds.
+ *
+ * These are real time rather than a number of characters, so a full stop is
+ * the same length of silence at every text speed. Measured in characters they
+ * would shrink exactly where the reader is going fastest and needs the breath
+ * most \x7f which is the opposite of the point.
+ */
+const HOLD: Record<string, number> = {
+  '.': 0.12,
+  '!': 0.12,
+  '?': 0.12,
+  '\x7f': 0.09,
+  ',': 0.05,
+  ';': 0.05,
+  ':': 0.05,
+};
+
+/**
+ * Target blips per second. The blip is per few characters, not per character:
+ * one per character is a buzz at any speed worth reading at, and the interval
+ * is derived from the speed so the texture is the same whether the line is
+ * arriving at 22 or 80 characters a second.
+ */
+const BLIP_HZ = 13;
+
+/**
+ * Seconds a completed page refuses further confirms.
+ *
+ * Finishing a page instantly is only half the promise. Without this, the
+ * second press of a two-press mash lands on a page that became complete a
+ * frame ago and turns it, so the sentence the first press asked to see is gone
+ * before it was read. Long enough to absorb a mash, short enough that a
+ * deliberate second press still turns the page.
+ */
+const GUARD = 0.15;
+
+export interface RevealOpts {
+  /** Pixel width the text is wrapped to. */
+  width: number;
+  /** Lines the box shows at once. Anything past this becomes a further page. */
+  maxLines?: number;
+  scale?: number;
+  /** Distinguishes two passages that happen to be worded identically. */
+  token?: string;
+  /** Silences the blip for text the player did not press anything to see. */
+  quiet?: boolean;
+}
+
+/**
+ * Typewriter reveal: one implementation for every box in the game.
+ *
+ * A scene owns an instance, hands it the string it wants shown, and asks it
+ * three questions \x7f is it still typing, is the box full with more to come,
+ * is it finished. The scene keeps its own layout and its own chrome.
+ *
+ * The rule that matters more than the effect is `confirm()`: a press while
+ * text is still arriving finishes the current page and is *consumed*, so it
+ * cannot also advance. Two fast presses can therefore never skip a sentence
+ * the player has not read, and a fast reader is never made to wait for one.
+ */
+export class TextReveal {
+  /** Wrapped lines, grouped into pages of at most `maxLines`. */
+  private pages: string[][] = [['']];
+  private page = 0;
+  /** The current page's lines end to end; the reveal position indexes this. */
+  private chars = '';
+  /** Index into `chars` where each line of the page starts. */
+  private starts: number[] = [0];
+  private breaks = new Set<number>();
+  private shown = 0;
+  private acc = 0;
+  private hold = 0;
+  private guard = 0;
+  private sinceBlip = 0;
+  private key = '';
+  private scale = 1;
+  private cap = 1;
+  private quiet = false;
+
+  /**
+   * Feeds the reveal the string it should be showing. Cheap to call every
+   * frame: the same text at the same size is a no-op, so a caller can simply
+   * hand over whatever its queue or dialogue node currently says.
+   */
+  show(text: string, o: RevealOpts): void {
+    const key = `${o.token ?? ''}|${o.width}|${o.maxLines ?? 0}|${o.scale ?? 1}|${text}`;
+    if (key === this.key) return;
+    this.key = key;
+    this.scale = Math.max(1, (o.scale ?? 1) | 0);
+    this.quiet = o.quiet ?? false;
+    const lines = wrapText(text, o.width / this.scale);
+    const per = Math.max(1, o.maxLines ?? lines.length);
+    this.cap = Math.max(1, Math.min(per, lines.length));
+    this.pages = [];
+    for (let i = 0; i < lines.length; i += per) this.pages.push(lines.slice(i, i + per));
+    if (!this.pages.length) this.pages = [['']];
+    this.page = 0;
+    this.startPage();
+  }
+
+  /** Types the same text again from the first page. */
+  restart(): void {
+    this.page = 0;
+    this.startPage();
+  }
+
+  update(dt: number): void {
+    if (this.guard > 0) this.guard -= dt;
+    if (this.shown >= this.chars.length) return;
+    const cps = TEXT_CPS[settings.get().textSpeed];
+    if (cps === Infinity) {
+      this.shown = this.chars.length;
+      return;
+    }
+    if (this.hold > 0) {
+      this.hold -= dt;
+      return;
+    }
+    this.acc += dt * cps;
+    while (this.acc >= 1 && this.shown < this.chars.length) {
+      this.acc -= 1;
+      this.step(cps);
+      if (this.hold > 0) break;
+    }
+  }
+
+  /**
+   * Feed a confirm press. True means the reveal took it and the caller must
+   * not advance: either the page was still typing, or there was another page.
+   */
+  confirm(): boolean {
+    if (this.typing) {
+      this.shown = this.chars.length;
+      this.acc = 0;
+      this.hold = 0;
+      this.guard = GUARD;
+      return true;
+    }
+    if (this.guard > 0) return true;
+    if (this.page < this.pages.length - 1) {
+      this.page++;
+      this.startPage();
+      audio.sfx('ui.move', { gain: 0.4 });
+      return true;
+    }
+    return false;
+  }
+
+  /** Characters are still arriving: the player is being asked to wait. */
+  get typing(): boolean {
+    return this.shown < this.chars.length;
+  }
+
+  /** The box is full and there is more of this passage behind it. */
+  get more(): boolean {
+    return !this.typing && this.page < this.pages.length - 1;
+  }
+
+  /** Every page of the passage has been shown. */
+  get finished(): boolean {
+    return !this.typing && this.page >= this.pages.length - 1;
+  }
+
+  /**
+   * Lines the box must be tall enough for. Constant across the pages of one
+   * passage, so a box that sizes itself to its content does not jump when the
+   * player pages through it.
+   */
+  get boxLines(): number {
+    return this.cap;
+  }
+
+  get pageCount(): number {
+    return this.pages.length;
+  }
+
+  /** Zero-based page being shown, for a caller that wants to say "2 of 3". */
+  get pageIndex(): number {
+    return this.page;
+  }
+
+  /** Draws the visible part of the current page. */
+  draw(p: Painter, x: number, y: number, o: TextOpts & { lineHeight?: number } = {}): void {
+    const page = this.pages[this.page];
+    const lh = o.lineHeight ?? LINE_H * this.scale;
+    for (let i = 0; i < page.length; i++) {
+      const take = this.shown - this.starts[i];
+      if (take <= 0) break;
+      p.text(page[i], x, y + i * lh, { ...o, scale: this.scale, limit: take });
+    }
+  }
+
+  /**
+   * The prompt in the corner of the box. The three states have to be told
+   * apart without reading them: still typing is a dim, still chevron that says
+   * wait; a full box with more behind it is a bright blinking arrow pointing
+   * down at the text it is hiding; a finished passage is the steady cursor the
+   * rest of the interface uses for "your turn".
+   */
+  drawIndicator(p: Painter, x: number, y: number, time: number): void {
+    if (this.typing) {
+      p.text('\x04', x, y, { color: PAL.iron4 });
+      return;
+    }
+    if (this.more) {
+      if (Math.sin(time * 5) > 0) p.text('\x02', x, y, { color: PAL.halo3, shadow: PAL.void0 });
+      return;
+    }
+    p.text('\x05', x, y, { color: PAL.halo2 });
+  }
+
+  private startPage(): void {
+    const page = this.pages[this.page];
+    this.chars = page.join('');
+    this.starts = [];
+    this.breaks = new Set();
+    let n = 0;
+    for (const line of page) {
+      this.starts.push(n);
+      if (n > 0) this.breaks.add(n);
+      n += line.length;
+    }
+    this.shown = 0;
+    this.acc = 0;
+    this.hold = 0;
+    this.sinceBlip = 0;
+  }
+
+  private step(cps: number): void {
+    const i = this.shown++;
+    const ch = this.chars[i];
+    if (ch !== ' ' && ++this.sinceBlip >= Math.max(2, Math.round(cps / BLIP_HZ))) {
+      this.sinceBlip = 0;
+      if (!this.quiet) audio.sfx('text.blip', { gain: 0.3 });
+    }
+    // Only pause on a mark that ends a word. Without that test "9-C" stops
+    // twice and an ellipsis stops three times.
+    const next = i + 1;
+    if (next < this.chars.length && (this.chars[next] === ' ' || this.breaks.has(next))) {
+      this.hold = HOLD[ch] ?? 0;
+    }
+  }
 }

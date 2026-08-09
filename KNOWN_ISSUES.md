@@ -261,6 +261,51 @@ Two subagents were also cut off mid-task on Deck F and combat; a checkpoint
 commit captured their work rather than losing it to a container restart. The
 gaps they left are listed above rather than quietly closed.
 
+## Combat now starves, and the playtest caught it
+
+Predicted in the section above and now confirmed. Driving a real battle and
+reading integrity and coherence each turn:
+
+```
+turn 0   me 96/10   foe 106/14
+turn 1   me 83/8    foe  89/11
+turn 2   me 70/6    foe  72/8
+turn 3   me 57/4    foe  55/5
+turn 4   me 44/2    foe  38/2     <- and effectively stops here
+```
+
+Integrity falls cleanly for four turns and then both sides run out of
+coherence. Regeneration is +1 per turn against ability costs of 2 to 4, so
+past turn four the fight becomes several turns of STEADY to buy one strike.
+It is not a soft-lock  STEADY is free and never sealed, and an unaffordable
+pick is refused with a message  but the fight stops converging, and
+`battle resolves to an outcome` now fails deterministically in the playtest.
+
+That is a TRUE POSITIVE about the game, not a broken test, and it is the first
+hard evidence of what the unmeasured combat edits did. The fix needs the
+balance harness, which does not complete in this container, so it is recorded
+rather than guessed at.
+
+## Four subagents, four session limits
+
+Movement, text, audio and room-furnishing were all run as subagents and all
+four were cut off by the account session limit. What survived, and what it
+cost:
+
+- **Movement landed and works.** Tile-quantised stepping with input buffering
+  is in `world/actor.ts`.
+- **`ui/explore.ts` did not compile.** The agent was midway through unifying
+  interaction targeting and left dangling references to a `Target` type and two
+  constructors that were never written. Finished by hand  and the refactor
+  was worth finishing: the hint and the action used to derive their target
+  separately, and two searches meant to agree eventually do not. The failure
+  mode is the worst kind, where the game labels one object and activates
+  another.
+- **`game/dialogue.ts` was left binary.** A raw NUL byte had been written into
+  a string literal as a sentinel instead of an empty string. TypeScript
+  compiled it happily; git and every text tool saw a binary file. Repaired.
+- **Audio and furnishing produced almost nothing** before dying.
+
 ## A note on measurement hygiene
 
 One run of the playtest in this session reported ten failures that were
