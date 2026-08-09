@@ -136,7 +136,7 @@ const cCommons: RoomDef = {
     '############################',
     '##G##########G#########G####',
     '#..........................#',
-    '#.qQQQe...........1........#',
+    '#.qQQQe...........1....R...#',
     '#.....J....................#',
     '#..........................#',
     '#..TTt.......TTt......N....#',
@@ -149,6 +149,14 @@ const cCommons: RoomDef = {
   ],
   marks: {
     '1': { prop: 'prop.console.a', solid: true, interact: 'trim-readout' },
+    /**
+     * The distribution board. `prop.breaker` was registered in the tile atlas
+     * and mapped to mark 'R' in the base legend, and no room layout anywhere
+     * in the ship contained an 'R' \x7f so the loom background's advertised
+     * route (kill the hatch tell-tale from the Commons board) sent the player
+     * to a room with nothing in it to open.
+     */
+    R: { prop: 'prop.breaker', solid: true, interact: 'commons-breaker' },
     N: { prop: 'prop.bulletin', solid: true, interact: 'commons-bulletin' },
     '@': { spawn: 'default' },
     D: { door: { to: 'c-corridor', spawn: 'from-commons' }, spawn: 'from-corridor' },

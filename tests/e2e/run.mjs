@@ -193,17 +193,37 @@ async function main() {
   check('loads the muster station', (await probe()).room === 'c-muster');
 
   // The roster terminal sits at tile (4,4); spawn is (11,11). Walk up and left.
+  //
+  // This used to be a fixed path of three holds and eight left-nudges, and it
+  // broke the moment the crew started keeping to their schedules: the muster
+  // station now has people standing in it, which of them are present depends on
+  // the time block, and the walk ran into one of them. The game was fine — a
+  // player simply steps around a crewmate — but the instrument was measuring
+  // "does this exact keypath still work" rather than "can evidence be found by
+  // examining the world", which is the thing worth asserting.
+  //
+  // So it now sweeps: approach, then try the interact facing each way from a
+  // few nearby tiles. A human does the same thing without noticing.
   await hold('ArrowUp', 1500);
   await hold('ArrowLeft', 1500);
   await hold('ArrowUp', 900);
   await shot('08-muster');
-  // face it and interact a few times to catch alignment
   let gotClue = false;
-  for (let i = 0; i < 8 && !gotClue; i++) {
-    await key('KeyZ');
-    await page.waitForTimeout(250);
-    gotClue = (await probe()).clues > 0;
-    if (!gotClue) await hold('ArrowLeft', 160);
+  const sweep = [
+    'ArrowLeft', 'ArrowUp', 'ArrowDown', 'ArrowRight',
+    'ArrowLeft', 'ArrowUp', 'ArrowLeft', 'ArrowDown',
+  ];
+  outer: for (let lap = 0; lap < 3 && !gotClue; lap++) {
+    for (const dir of sweep) {
+      await hold(dir, 170);
+      await key('KeyZ');
+      await page.waitForTimeout(220);
+      if ((await probe()).clues > 0) { gotClue = true; break outer; }
+    }
+    // Nothing within reach from here. Step out one tile and come back at it
+    // from a different side rather than pressing the same wall again.
+    await hold('ArrowDown', 320);
+    await hold('ArrowLeft', 320);
   }
   check('found evidence by examining the world', gotClue, `clues=${(await probe()).clues}`);
   await shot('09-examine');

@@ -797,6 +797,30 @@ export const INTERACTABLES: Record<string, InteractDef> = {
       return { lines, clue: 'mass-manifest' };
     },
   },
+  /**
+   * The board itself. It grants nothing and it is not a clue \x7f pulling the
+   * breaker is the BREAKER KEY's job, from the kit screen. What it does is tell
+   * a player who has the key that this is the thing the key is for, and tell a
+   * player who does not that there is a locked route here worth coming back to.
+   * A route the game never mentions is a route that does not exist.
+   */
+  'commons-breaker': {
+    id: 'commons-breaker',
+    label: 'Distribution board',
+    run: (s) => ({
+      lines: s.has('telltale-killed')
+        ? [
+            'The cover hangs open on its hinge. Third row, seventh breaker, still out.',
+            'Nobody has been down to reset it. Nobody has been down at all.',
+          ]
+        : [
+            'DECK C DISTRIBUTION \x7f AUTHORISED ENGINEERING ONLY. Square-drive cover, two turns.',
+            s.itemCount('breaker-key') > 0
+              ? 'The key on your belt is cut for exactly this. Third row is hatch and tell-tale circuits.'
+              : 'The cover does not come off by hand. Engineering signs out a key for it, one per watch.',
+          ],
+    }),
+  },
   'commons-bulletin': {
     id: 'commons-bulletin',
     label: 'Commons bulletin',

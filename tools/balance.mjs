@@ -145,8 +145,22 @@ async function main() {
       }
     };
 
+    /**
+     * What one point of coherence is worth right now, in damage.
+     *
+     * Not simply "the damage it buys": a combatant gets one action a turn
+     * whatever its grip, so a cast sitting on a full bar cannot spend the
+     * surplus and an extra point is worth nothing to it. Grip only becomes
+     * valuable as it runs out, which is the whole reason GUTTERING exists.
+     */
+    const gripValue = (me, foe) => perCoherence(me, foe) * (1 - me.coherence / me.maxCoherence);
+
+    /** Losing the race: they take you apart before you take them apart. */
+    const race = (me, foe) =>
+      me.integrity / bestHit(foe, me) <= foe.integrity / bestHit(me, foe) + 1;
+
     const worth = (a, me, foe) => {
-      let v = expected(a, foe);
+      let v = expected(a, foe) - a.cost * gripValue(me, foe);
       for (const inf of a.inflict ?? []) {
         // Re-applying a status the target already carries buys nothing.
         if (!foe.statuses.has(inf.status)) v += rider(inf, me, foe);
@@ -159,10 +173,21 @@ async function main() {
         }
         if (a.selfBuff.coherence) {
           const gained = Math.min(a.selfBuff.coherence, me.maxCoherence - me.coherence);
-          v += gained * perCoherence(me, foe);
+          v += gained * gripValue(me, foe);
         }
         if (a.selfBuff.integrity) {
-          v += Math.min(a.selfBuff.integrity, me.maxIntegrity - me.integrity);
+          const gain = Math.min(a.selfBuff.integrity, me.maxIntegrity - me.integrity);
+          // A heal buys turns, and turns are only worth anything if you are
+          // losing the race. Priced at face value the scorer healed Lampwright
+          // for fourteen turns against a boss it was never going to out-damage,
+          // and lost 100% of them. Outside a race it is worth what it defers.
+          v += race(me, foe) ? gain : gain * 0.25;
+        }
+      }
+      // Every condition cleared is the rest of that condition not happening.
+      if (a.clears) {
+        for (const st of me.statuses.keys()) {
+          v += st === 'guttering' ? 8 : rider({ status: st, turns: 3, chance: 1 }, foe, me);
         }
       }
       // A read is +30% damage for the rest of the fight, so it removes about a
@@ -187,6 +212,10 @@ async function main() {
      *              braces when grip is the scarce thing, and otherwise hits.
      *  - support:  control first, and only control that changes something.
      *              Probes whether the non-damage kit is a strategy at all.
+     *  - damage:   the previous `considered` policy, kept verbatim. It scores
+     *              nothing but power x effectiveness, so it is the control
+     *              group for the scorer above: any usage share it reports is
+     *              what the old instrument could see.
      */
     const byWorth = (me, foe) => (b, a) => (worth(a, me, foe) > worth(b, me, foe) ? a : b);
     const policies = {
@@ -194,6 +223,16 @@ async function main() {
         kit.reduce((b, a) => (expected(a, foe) > expected(b, foe) ? a : b)),
       random: (me, foe, kit, rng) => kit[rng.int(kit.length)],
       considered: (me, foe, kit) => kit.reduce(byWorth(me, foe)),
+      damage: (me, foe, kit, rng) => {
+        const hurt = me.integrity / me.maxIntegrity < 0.4;
+        const strikes = kit.filter((a) => a.power > 0);
+        const cheapest = strikes.length ? Math.min(...strikes.map((a) => a.cost)) : 99;
+        if (!foe.analysed) { const r = kit.find((a) => a.kind === 'read'); if (r) return r; }
+        if (hurt) { const m = kit.find((a) => a.kind === 'mend'); if (m) return m; }
+        if (me.coherence < cheapest) { const g = kit.find((a) => a.kind === 'guard'); if (g) return g; }
+        if (strikes.length) return strikes.reduce((b, a) => (expected(a, foe) > expected(b, foe) ? a : b));
+        return kit[rng.int(kit.length)];
+      },
       support: (me, foe, kit) => {
         const ctl = kit.filter(
           (a) => (a.kind === 'control' || a.kind === 'disrupt' || a.kind === 'read') && changes(a, foe),
@@ -248,18 +287,26 @@ async function main() {
       }
     }
 
-    // per-tessera ability share, so a rarely-picked ability inside a good kit
-    // is still visible
+    // Per-tessera ability share, so a rarely-picked ability inside a good kit
+    // is still visible. Reported under both scorers: dead and dominant are
+    // claims about the game, and a claim that only holds under one instrument
+    // is a claim about the instrument.
     out.kitShare = {};
-    for (const tid of tesseraIds) {
-      const ids = TESSERAE[tid].abilities.map((a) => a.id);
-      const counts = {};
-      let total = 0;
-      for (const rec of out.pairs) {
-        if (rec.tessera !== tid || rec.policy !== 'considered') continue;
-        for (const id of ids) { counts[id] = (counts[id] ?? 0) + (rec.used[id] ?? 0); total += rec.used[id] ?? 0; }
+    for (const pname of ['considered', 'damage']) {
+      out.kitShare[pname] = {};
+      for (const tid of tesseraIds) {
+        const ids = TESSERAE[tid].abilities.map((a) => a.id);
+        const counts = {};
+        let total = 0;
+        for (const rec of out.pairs) {
+          if (rec.tessera !== tid || rec.policy !== pname) continue;
+          for (const id of ids) { counts[id] = (counts[id] ?? 0) + (rec.used[id] ?? 0); total += rec.used[id] ?? 0; }
+        }
+        out.kitShare[pname][tid] = {
+          total,
+          share: Object.fromEntries(ids.map((id) => [id, total ? counts[id] / total : 0])),
+        };
       }
-      out.kitShare[tid] = { total, share: Object.fromEntries(ids.map((id) => [id, total ? counts[id] / total : 0])) };
     }
     return out;
   }, RUNS);
@@ -306,16 +353,19 @@ async function main() {
       `${rec.avgTurns.toFixed(1)} turns  ${pct(rec.avgIntegrityLeft)} integrity left`);
   }
 
-  console.log('\nability usage share within its own kit (considered policy)');
   const dead = [];
   const dominant = [];
-  for (const [tid, k] of Object.entries(data.kitShare)) {
-    console.log(`  ${tid}`);
-    for (const [id, sh] of Object.entries(k.share).sort((a, b) => b[1] - a[1])) {
-      const bar = '#'.repeat(Math.round(sh * 30));
-      console.log(`    ${id.padEnd(16)} ${pct(sh).padStart(5)} ${bar}`);
-      if (sh < 0.02) dead.push(`${tid}/${id} (${pct(sh)})`);
-      if (sh > 0.60) dominant.push(`${tid}/${id} (${pct(sh)})`);
+  for (const [pname, kits] of Object.entries(data.kitShare)) {
+    console.log(`\nability usage share within its own kit (${pname} policy)`);
+    for (const [tid, k] of Object.entries(kits)) {
+      console.log(`  ${tid}`);
+      for (const [id, sh] of Object.entries(k.share).sort((a, b) => b[1] - a[1])) {
+        const bar = '#'.repeat(Math.round(sh * 30));
+        console.log(`    ${id.padEnd(16)} ${pct(sh).padStart(5)} ${bar}`);
+        if (pname !== 'considered') continue;
+        if (sh < 0.02) dead.push(`${tid}/${id} (${pct(sh)})`);
+        if (sh > 0.60) dominant.push(`${tid}/${id} (${pct(sh)})`);
+      }
     }
   }
 

@@ -161,29 +161,30 @@ const fHold: RoomDef = {
     '#.......%%%%%%%%%%...............#',
     '#................................#',
     '#..g.........................g...#',
-    '#..p------p..p------p..p------p..#',
-    '#..p------p..p------p..p------p..#',
+    '#..pTTTTTTp..pTTTTTTp..pTTTTTTp..#',
+    '#..pTTTTTTp..pTTTTTTp..pTTTTTTp..#',
     '#................................#',
     '#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#',
     '#................................#',
-    '#..p------p..p--K---p..p------p..#',
-    '#..p------p..p------p..p------p..#',
+    '#..pTTTTTTp..pTTKTTTp..pTTTTTTp..#',
+    '#..pTTTTTTp..pTTTTTTp..pTTTTTTp..#',
     '#................................#',
-    '#..g.........................g...#',
-    '#..p------p..p------p..p------p..#',
-    '#..p------p..p------p..p------p..#',
-    '#............$...................#',
-    '#..Z.x..X.......O...Y......E.....#',
+    '#..g......s..................g...#',
+    '#..pTTTTTTp..pTTTTTTp..pTTTTTTp..#',
+    '#..pTTTTTTp..pTTTTTTp..pTTTTTTp..#',
+    '#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#',
+    '#..Z.x..X....$..O...Y......E.....#',
     '#############UU###################',
   ],
   marks: {
-    // Each section is two tiles thick with a flange at both ends, because one
-    // row of pipe reads as a handrail. A relay mast in transit is a cylinder
-    // you could drive a lorry through, and the hold has to look like it is
-    // holding something before the player is told it is holding everything it
-    // declares.
+    // Nine sections, each an eight-by-two block of hull plate with a flange at
+    // either end. The first pass drew them as pipe runs and they read as
+    // handrails: a relay mast in transit is a member you could drive a lorry
+    // through, and the hold has to LOOK loaded before the player is told the
+    // load is honest. Plate reads as mass; a pipe reads as plumbing.
+    T: { prop: 'wall.iron.panel', solid: true },
     p: { prop: 'prop.pipe.elbow', solid: true },
-    K: { prop: 'prop.pipe.h', solid: true, interact: 'keel-cradles' },
+    K: { prop: 'wall.iron.panel', solid: true, interact: 'keel-cradles' },
     // The welded bulkhead: iron panel set into a spine wall, so the patch is
     // legible as a patch before the player reads a word about it.
     B: { prop: 'wall.iron.panel', solid: true, interact: 'hold-bulkhead' },
@@ -198,7 +199,7 @@ const fHold: RoomDef = {
     // and they can see it happen.
     g: {
       over: 'prop.light.emergency',
-      light: { r: 40, color: PAL.amber1, i: 0.38, flicker: 0.16 },
+      light: { r: 46, color: PAL.amber2, i: 0.55, flicker: 0.16 },
     },
   },
 };

@@ -28,6 +28,7 @@ import { GameState } from '@/game/state';
 import { bus } from '@/core/events';
 import { ROSTER_ENCOUNTERS } from '@/combat/roster';
 import { ArenaLook, BODY_H, DEFAULT_ARENA, STANCE, drawArena } from '@/combat/arena';
+import { battleItems, spendBattleItem } from '@/data/items';
 
 // =====================================================================
 // DATA
@@ -110,6 +111,9 @@ export interface Ability {
   inflict?: Inflict[];
   /** Applied to the user. */
   selfBuff?: { guard?: number; coherence?: number; integrity?: number };
+  /** Strips every condition from the user. Was keyed off the ability id in the
+   *  resolver, where nothing outside that one line could see it. */
+  clears?: boolean;
   /** Never misses, ignores STATIC accuracy loss. */
   sure?: boolean;
 }
@@ -177,10 +181,17 @@ export const ABILITIES: Record<string, Ability> = {
     desc: 'Sets the projection against itself. Anchored.',
     inflict: [{ status: 'anchored', turns: 3, chance: 0.9 }],
   }),
+  // A mend competes with the turn you did not spend attacking, and measurement
+  // was blunt about it: banking five coherence buys Kiln a KILN DRAW, and a
+  // KILN DRAW is worth more than sixteen integrity in a race both casts finish
+  // in five turns. So the heat has to go somewhere other than into the wound.
+  // It goes into the field between them, and the other cast cannot see through
+  // it.
   'cauterise': A({
     id: 'cauterise', name: 'CAUTERISE', kind: 'mend', aspect: 'thermal', cost: 3, power: 0,
-    desc: 'Restores integrity and clears one condition.',
-    selfBuff: { integrity: 16 },
+    desc: 'Burns the seam shut, clears every condition, and vents the heat downrange.',
+    selfBuff: { integrity: 16 }, clears: true,
+    inflict: [{ status: 'static', turns: 3, chance: 0.6 }],
   }),
   'flare-off': A({
     id: 'flare-off', name: 'FLARE OFF', kind: 'strike', aspect: 'thermal', cost: 3, power: 15,
@@ -200,7 +211,7 @@ export const ABILITIES: Record<string, Ability> = {
   'clean-field': A({
     id: 'clean-field', name: 'CLEAN FIELD', kind: 'mend', aspect: 'field', cost: 2, power: 0,
     desc: 'Clears all conditions and restores a little coherence.',
-    selfBuff: { coherence: 2 },
+    selfBuff: { coherence: 2 }, clears: true,
   }),
   'suture': A({
     id: 'suture', name: 'SUTURE', kind: 'strike', aspect: 'field', cost: 2, power: 12,
@@ -614,7 +625,7 @@ export class BattleScene implements Scene {
         audio.sfx('heal');
         this.msg(`${userName} holds itself back together. +${heal} integrity.`);
       }
-      if (ab.id === 'clean-field' || ab.id === 'cauterise') {
+      if (ab.clears) {
         user.statuses.clear();
         this.msg(`${userName} clears.`);
       }
@@ -869,7 +880,7 @@ export class BattleScene implements Scene {
     }
 
     if (this.phase === 'menu') {
-      const items = 3;
+      const items = 4;
       if (app.input.repeated('down')) {
         this.menuIndex = (this.menuIndex + 1) % items;
         audio.sfx('ui.move');
@@ -896,6 +907,38 @@ export class BattleScene implements Scene {
             app.toast('Evidence: CAST SERIAL', '\x09', PAL.amber3);
           }
           this.phase = 'message';
+        } else if (this.menuIndex === 2) {
+          /**
+           * Spending a carried dose costs the turn, exactly as an ability does.
+           * A free heal is degenerate \x7f it turns every fight into a war of
+           * attrition the player cannot lose while supplies hold.
+           *
+           * It is routed through playerAct as a real Ability rather than
+           * applied directly, so it obeys every rule an ability obeys: the
+           * enemy still acts, statuses still tick, and the restore is clamped
+           * by useAbility. The alternative was duplicating the turn sequence
+           * here, and two copies of the turn order is how they drift apart.
+           */
+          const held = battleItems(app.state)[0];
+          const fx = held ? spendBattleItem(app.state, held.id) : null;
+          if (!fx) {
+            audio.sfx('ui.error');
+            this.msg('Nothing on you to take.');
+            this.phase = 'message';
+          } else {
+            audio.sfx('status.apply');
+            this.msg(fx.message);
+            this.playerAct(app, {
+              id: 'dose',
+              name: held!.name,
+              kind: 'mend',
+              aspect: this.me.def.aspect,
+              cost: 0,
+              power: 0,
+              desc: fx.message,
+              selfBuff: { integrity: fx.integrity, coherence: fx.coherence },
+            });
+          }
         } else {
           if (!this.enc.canFlee || this.hasStatus(this.me, 'anchored')) {
             this.msg(
@@ -998,18 +1041,21 @@ export class BattleScene implements Scene {
     }
 
     if (this.phase === 'menu') {
-      const items = ['PROJECT', 'READ', 'WITHDRAW'];
+      const dose = battleItems(_app.state)[0];
+      const items = ['PROJECT', 'READ', 'DOSE', 'WITHDRAW'];
       const hints = [
         'Use an ability.',
         'Read the cast \x7f free, always available, and how you learn what it is.',
+        dose ? `${dose.name} \x7f costs the turn.` : 'Nothing on you to take.',
         this.enc.canFlee ? 'Cut the projection and leave.' : 'Not possible here.',
       ];
       items.forEach((it, i) => {
         const y = boxY + 8 + i * 12;
         const sel = i === this.menuIndex;
+        const dead = (i === 2 && !dose) || (i === 3 && !this.enc.canFlee);
         if (sel) p.rect(10, y - 2, 96, 11, mix(PAL.void2, PAL.halo1, 0.4));
         p.text(sel ? '\x05' : ' ', 13, y, { color: PAL.halo3 });
-        p.text(it, 22, y, { color: sel ? PAL.bone3 : PAL.bone0 });
+        p.text(it, 22, y, { color: dead ? PAL.iron3 : sel ? PAL.bone3 : PAL.bone0 });
       });
       p.textBlock(hints[this.menuIndex], 114, boxY + 8, VW - 128, {
         color: PAL.iron5,
