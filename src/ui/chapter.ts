@@ -168,6 +168,15 @@ export const OUTCOMES: Outcome[] = [
  * no route hands you both. O2 walks into the strongroom and finds Onwe has
  * nothing to say to a Board asset; everyone else has to get the safe out of
  * her, and what she wants differs by how they arrived.
+ *
+ * Deck F unseals at the same moment and for a different reason. Deck A had to
+ * stay shut because the red herring pointed at the Captain; Deck F had to stay
+ * shut because the Cold Registry answers, in one room, most of what Chapter One
+ * is for asking. Once the chapter is closed neither reason survives, so both
+ * decks open \x7f and the same split applies. The lift takes you to the cargo
+ * deck; it does not take you into the vault, and the route that cannot use the
+ * lift at all is the only one handed the crawl. See the access note at the top
+ * of src/data/deck-f.ts.
  */
 export function openChapterTwo(s: GameState, outcome: string): void {
   s.setFlag('knows-deck-a', true);
@@ -175,15 +184,21 @@ export function openChapterTwo(s: GameState, outcome: string): void {
     case 'O2':
       s.grantClearance('command');
       s.grantClearance('command-safe');
+      s.grantClearance('cargo-deck');
       break;
     case 'O3':
       // Deliberately NOT `command`: the lift stop stays listed and stays
       // refused, so the player is told they are barred before they find the
       // way around it. A route you did not know you were denied is not a route.
       s.grantClearance('spine-command');
+      // Same argument one deck down, and the same answer. A crew member on the
+      // Watch's list is not being handed a hold; they are being handed the duct
+      // hatch above it, which nothing reads and nothing logs.
+      s.grantClearance('spine-registry');
       break;
     default:
       s.grantClearance('command');
+      s.grantClearance('cargo-deck');
       break;
   }
 }

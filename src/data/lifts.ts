@@ -67,6 +67,25 @@ export const LIFT_STOPS: LiftStop[] = [
     blurb: 'Registry floor, the stacks, Vestibule offices.',
   },
   {
+    deck: 'F',
+    room: 'f-landing',
+    spawn: 'default',
+    label: 'DECK F \x7f CARGO',
+    blurb: 'Holds one to four, shuttle bay two.',
+    // Deliberately NOT `known`-gated. Deck A is hidden because a sealed command
+    // deck is a canon secret; Deck F is the cargo deck of a cargo ship and
+    // every hand aboard knows it is down there. What the player learns from the
+    // panel is that a hold has been suspended for fourteen months by nobody, and
+    // that is worth more in Chapter One than the deck itself would be.
+    clearance: 'cargo-deck',
+    refuse: (has) =>
+      has('saw-cold-registry')
+        ? 'HOLD ACCESS SUSPENDED \x7f CONSIGNMENT IN PLACE. You have been over that consignment ' +
+          'on your hands and knees. The panel does not know that, and would not weigh it if it did.'
+        : 'HOLD ACCESS SUSPENDED \x7f CONSIGNMENT IN PLACE. No expiry field. No issuing officer. ' +
+          'The suspension is fourteen months old and predates the voyage.',
+  },
+  {
     deck: 'A',
     room: 'a-command',
     spawn: 'default',

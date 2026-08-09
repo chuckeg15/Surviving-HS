@@ -91,6 +91,12 @@ export const STATUS_INFO: Record<StatusId, { name: string; blurb: string; bad: b
 
 export type AbilityKind = 'strike' | 'guard' | 'mend' | 'disrupt' | 'read' | 'control';
 
+export interface Inflict {
+  status: StatusId;
+  turns: number;
+  chance: number;
+}
+
 export interface Ability {
   id: string;
   name: string;
@@ -99,8 +105,9 @@ export interface Ability {
   cost: number;
   power: number;
   desc: string;
-  /** Applied to the target on hit. */
-  inflict?: { status: StatusId; turns: number; chance: number };
+  /** Applied to the target on hit. A list, because control that only ever does
+   *  one thing to the board is a strike with extra words. */
+  inflict?: Inflict[];
   /** Applied to the user. */
   selfBuff?: { guard?: number; coherence?: number; integrity?: number };
   /** Never misses, ignores STATIC accuracy loss. */
@@ -149,7 +156,7 @@ export const ABILITIES: Record<string, Ability> = {
   'shear-pin': A({
     id: 'shear-pin', name: 'SHEAR PIN', kind: 'control', aspect: 'kinetic', cost: 2, power: 6,
     desc: 'Pins the target in place. Anchored.',
-    inflict: { status: 'anchored', turns: 3, chance: 1 },
+    inflict: [{ status: 'anchored', turns: 3, chance: 1 }],
   }),
   'gasket-read': A({
     id: 'gasket-read', name: 'READ WEAR', kind: 'read', aspect: 'kinetic', cost: 1, power: 0,
@@ -163,12 +170,12 @@ export const ABILITIES: Record<string, Ability> = {
   'solvent-line': A({
     id: 'solvent-line', name: 'SOLVENT LINE', kind: 'strike', aspect: 'corrosive', cost: 2, power: 9,
     desc: 'Runs sealant solvent along the seam. Slow, and it keeps working.',
-    inflict: { status: 'frayed', turns: 3, chance: 0.5 },
+    inflict: [{ status: 'frayed', turns: 3, chance: 0.5 }],
   }),
   'traction': A({
     id: 'traction', name: 'TRACTION', kind: 'strike', aspect: 'kinetic', cost: 3, power: 12,
     desc: 'Sets the projection against itself. Anchored.',
-    inflict: { status: 'anchored', turns: 3, chance: 0.9 },
+    inflict: [{ status: 'anchored', turns: 3, chance: 0.9 }],
   }),
   'cauterise': A({
     id: 'cauterise', name: 'CAUTERISE', kind: 'mend', aspect: 'thermal', cost: 3, power: 0,
@@ -178,7 +185,7 @@ export const ABILITIES: Record<string, Ability> = {
   'flare-off': A({
     id: 'flare-off', name: 'FLARE OFF', kind: 'strike', aspect: 'thermal', cost: 3, power: 15,
     desc: 'Dumps heat. May leave the target frayed.',
-    inflict: { status: 'frayed', turns: 3, chance: 0.6 },
+    inflict: [{ status: 'frayed', turns: 3, chance: 0.6 }],
   }),
   'bank-heat': A({
     id: 'bank-heat', name: 'BANK HEAT', kind: 'guard', aspect: 'thermal', cost: 1, power: 0,
@@ -198,7 +205,7 @@ export const ABILITIES: Record<string, Ability> = {
   'suture': A({
     id: 'suture', name: 'SUTURE', kind: 'strike', aspect: 'field', cost: 2, power: 12,
     desc: 'A field seam drawn through the target. Leaves bleedover.',
-    inflict: { status: 'bleedover', turns: 2, chance: 0.75 },
+    inflict: [{ status: 'bleedover', turns: 2, chance: 0.75 }],
   }),
   'tally': A({
     id: 'tally', name: 'TALLY', kind: 'read', aspect: 'cognitive', cost: 1, power: 0,
@@ -207,26 +214,35 @@ export const ABILITIES: Record<string, Ability> = {
   'strike-record': A({
     id: 'strike-record', name: 'STRIKE RECORD', kind: 'disrupt', aspect: 'cognitive', cost: 3, power: 11,
     desc: 'Erases part of what the cast knows how to do. Sealed.',
-    inflict: { status: 'sealed', turns: 3, chance: 0.85 },
+    inflict: [{ status: 'sealed', turns: 3, chance: 0.85 }],
   }),
-  // Was a 4-power disrupt and measured dead at 0% for the entire balance pass.
-  // Tallyman also had no guard at all, which is why it lost every kinetic
-  // matchup 100% of the time. One change fixes both: AUDIT is now the kit's
-  // brace, and still does enough to be worth the turn.
+  // Measured dead at 0% across two balance passes. It kept 4 power, which was
+  // enough for every policy to file it as a bad strike and never as the brace
+  // it is: Tallyman's whole game is grip, so its brace has to be the cheapest
+  // thing in the kit rather than the second most expensive. Damage removed
+  // outright \x7f AUDIT counts what is left and takes it, and counting is not
+  // a blow.
   'audit': A({
-    id: 'audit', name: 'AUDIT', kind: 'guard', aspect: 'cognitive', cost: 2, power: 4,
+    id: 'audit', name: 'AUDIT', kind: 'guard', aspect: 'cognitive', cost: 1, power: 0,
     selfBuff: { guard: 0.45, coherence: 3 },
-    desc: 'Drains coherence hard. Damage is incidental.',
-    inflict: { status: 'frayed', turns: 4, chance: 0.9 },
+    desc: 'Reads the cast\x27s remaining grip aloud and takes it. Braces while it counts.',
+    inflict: [{ status: 'frayed', turns: 4, chance: 0.9 }],
   }),
   'truncheon': A({
     id: 'truncheon', name: 'TRUNCHEON', kind: 'strike', aspect: 'kinetic', cost: 3, power: 14,
     desc: 'Watch-issue. Blunt and correct.',
   }),
+  // The description promised two things and the rules delivered one: it read
+  // "anchors the target and seals its support" while inflicting only ANCHORED,
+  // and SEALED did nothing to an opponent anyway. Both halves are real now, and
+  // RESTRAIN is the reason a Watch cast is difficult to talk around.
   'restrain': A({
     id: 'restrain', name: 'RESTRAIN', kind: 'control', aspect: 'kinetic', cost: 2, power: 6,
     desc: 'Anchors the target and seals its support.',
-    inflict: { status: 'anchored', turns: 2, chance: 1 },
+    inflict: [
+      { status: 'anchored', turns: 3, chance: 1 },
+      { status: 'sealed', turns: 3, chance: 0.8 },
+    ],
   }),
   'kiln-draw': A({
     id: 'kiln-draw', name: 'KILN DRAW', kind: 'strike', aspect: 'thermal', cost: 4, power: 20,
@@ -241,12 +257,12 @@ export const ABILITIES: Record<string, Ability> = {
   'deny': A({
     id: 'deny', name: 'DENY', kind: 'disrupt', aspect: 'field', cost: 2, power: 12,
     desc: 'Refuses the projection. Static.',
-    inflict: { status: 'static', turns: 2, chance: 0.7 },
+    inflict: [{ status: 'static', turns: 2, chance: 0.7 }],
   }),
   'seal-order': A({
     id: 'seal-order', name: 'SEAL ORDER', kind: 'control', aspect: 'field', cost: 3, power: 5,
     desc: 'Locks support abilities.',
-    inflict: { status: 'sealed', turns: 3, chance: 0.9 },
+    inflict: [{ status: 'sealed', turns: 3, chance: 0.9 }],
   }),
   'writ': A({
     id: 'writ', name: 'WRIT OF DISTRAINT', kind: 'strike', aspect: 'field', cost: 4, power: 17,
@@ -264,7 +280,7 @@ export const ABILITIES: Record<string, Ability> = {
   'caution': A({
     id: 'caution', name: 'CAUTION', kind: 'control', aspect: 'kinetic', cost: 2, power: 3,
     desc: 'A formal warning, delivered hard.',
-    inflict: { status: 'anchored', turns: 2, chance: 0.8 },
+    inflict: [{ status: 'anchored', turns: 2, chance: 0.8 }],
   }),
   'loom-tap': A({
     id: 'loom-tap', name: 'LOOM TAP', kind: 'strike', aspect: 'thermal', cost: 2, power: 8,
@@ -498,6 +514,23 @@ export class BattleScene implements Scene {
     return (c.statuses.get(s) ?? 0) > 0;
   }
 
+  /**
+   * SEALED locks everything that is not a strike. This has to be answered where
+   * abilities are CHOSEN, not where the player's menu is drawn: the check used
+   * to live in `update` alone, so sealing an OPPONENT did nothing whatsoever.
+   * Every disrupt in the game that inflicts it \x7f STRIKE RECORD, SEAL ORDER,
+   * REDACT \x7f was inert against an enemy, which is most of why control
+   * measured as competitive with nothing.
+   *
+   * Sealing is pressure, not a removal of agency. Two kits carry no strike at
+   * all (Tallyman is a read plus three disrupts; ADMITTANCE is two disrupts and
+   * a guard), so if it would block the whole kit it blocks nothing.
+   */
+  private sealBlocks(c: Combatant, ab: Ability): boolean {
+    if (ab.kind === 'strike' || !this.hasStatus(c, 'sealed')) return false;
+    return c.def.abilities.some((a) => a.kind === 'strike');
+  }
+
   private applyStatus(c: Combatant, s: StatusId, turns: number): void {
     c.statuses.set(s, Math.max(c.statuses.get(s) ?? 0, turns));
     audio.sfx('status.apply');
@@ -601,9 +634,10 @@ export class BattleScene implements Scene {
     }
 
     if (ab.inflict && target.integrity > 0) {
-      if (this.rng.chance(ab.inflict.chance)) {
-        this.applyStatus(target, ab.inflict.status, ab.inflict.turns);
-        this.msg(`${target.def.name} is ${STATUS_INFO[ab.inflict.status].name}.`);
+      for (const inf of ab.inflict) {
+        if (!this.rng.chance(inf.chance)) continue;
+        this.applyStatus(target, inf.status, inf.turns);
+        this.msg(`${target.def.name} is ${STATUS_INFO[inf.status].name}.`);
       }
     }
   }
@@ -614,7 +648,9 @@ export class BattleScene implements Scene {
    * trade, and prefer an aspect that beats what it is looking at.
    */
   private enemyChoose(): Ability {
-    const kit = this.foe.def.abilities.filter((a) => this.foe.coherence >= a.cost);
+    const kit = this.foe.def.abilities.filter(
+      (a) => this.foe.coherence >= a.cost && !this.sealBlocks(this.foe, a),
+    );
     if (!kit.length) return ABILITIES.steady;
 
     const lowCoherence = this.foe.coherence <= 3;
@@ -735,7 +771,9 @@ export class BattleScene implements Scene {
     let damageTaken = 0;
 
     while (!this.result && this.turn < maxTurns) {
-      const kit = this.me.def.abilities.filter((a) => this.me.coherence >= a.cost);
+      const kit = this.me.def.abilities.filter(
+        (a) => this.me.coherence >= a.cost && !this.sealBlocks(this.me, a),
+      );
       // Mirrors the played game's STEADY fallback exactly.
       const choices = kit.length ? kit : [ABILITIES.steady];
       const ab = policy(this.me, this.foe, choices, this.rng);
@@ -892,22 +930,14 @@ export class BattleScene implements Scene {
       }
       if (app.input.pressed('confirm')) {
         const ab = kit[this.abilityIndex];
-        // SEALED locks everything that is not a strike. A kit with NO strike
-        // ability at all (Tallyman is read + three disrupts) would therefore be
-        // locked out entirely and could only STEADY, forever. Sealing is
-        // pressure, not a removal of agency: if it would block the whole kit,
-        // it blocks nothing this turn.
-        const sealActive =
-          this.hasStatus(this.me, 'sealed') &&
-          this.me.def.abilities.some((a) => a.kind === 'strike');
         const blocked = (a: Ability) =>
-          a.cost > this.me.coherence || (sealActive && a.kind !== 'strike');
+          a.cost > this.me.coherence || this.sealBlocks(this.me, a);
         if (kit.every(blocked)) {
           this.msg('Nothing will hold. The projection steadies itself.');
           this.playerAct(app, ABILITIES.steady);
           return;
         }
-        const sealed = sealActive && ab.kind !== 'strike';
+        const sealed = this.sealBlocks(this.me, ab);
         if (ab.cost > this.me.coherence || sealed) {
           audio.sfx('ui.error');
           this.msg(sealed ? 'Sealed. That part of the cast will not answer.' : 'Not enough coherence.');
@@ -994,7 +1024,7 @@ export class BattleScene implements Scene {
       const y = boxY + 6 + i * 11;
       const sel = i === this.abilityIndex;
       const afford = this.me.coherence >= ab.cost;
-      const sealed = this.hasStatus(this.me, 'sealed') && ab.kind !== 'strike';
+      const sealed = this.sealBlocks(this.me, ab);
       const col = !afford || sealed ? PAL.iron3 : sel ? PAL.bone3 : PAL.bone0;
       if (sel) p.rect(10, y - 2, 150, 10, mix(PAL.void2, PAL.halo1, 0.4));
       p.text(ab.name, 22, y, { color: col });

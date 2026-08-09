@@ -12,6 +12,7 @@ import { ROOMS_D } from '@/data/deck-d';
 import { ROOMS_B } from '@/data/deck-b';
 import { ROOMS_E } from '@/data/deck-e';
 import { ROOMS_A } from '@/data/deck-a';
+import { ROOMS_F } from '@/data/deck-f';
 import { PAL } from '@/art/palette';
 
 const CARPET = ['floor.carpet.a', 'floor.carpet.b', 'floor.carpet.worn'];
@@ -258,7 +259,7 @@ const spineDuct: RoomDef = {
     '#.\\\\..........\\\\......\\\\.......#',
     '#..............................#',
     '#....1.......2........3........#',
-    '#..............................#',
+    '#.....................H........#',
     '#.......~~~~~~~~~~~~~..........#',
     '#.........................U....#',
     '#..g......................g....#',
@@ -277,6 +278,30 @@ const spineDuct: RoomDef = {
     '4': { interact: 'sentinel-post' },
     '@': { spawn: 'default' },
     D: { door: { to: 'c-muster', spawn: 'from-duct' }, spawn: 'from-muster' },
+    /**
+     * The way down into the hold the player has just been looking at, one tile
+     * from the overlook, because the overlook IS the hatch surround.
+     *
+     * Locked through Chapter One and beyond it for everyone except the Ninth
+     * Watch route \x7f see the access note at the top of deck-f.ts. The lock is
+     * `spine-registry`, granted only by O3, whose lift access is refused
+     * because they are on a list and who therefore needs a way onto Deck F
+     * that reads nothing and logs nothing. Every other route reaches the vault
+     * through the plant, pays for it with a permanent entry in the Registry's
+     * own log, and can then open this hatch from the cold side on the way out.
+     */
+    H: {
+      door: {
+        to: 'f-registry',
+        spawn: 'from-duct',
+        tile: 'hatch.closed',
+        locked: 'spine-registry',
+        refuse:
+          'An inspection hatch let into the crawl floor, directly over the hold. It is dogged, ' +
+          'and the dogs are on the cold side.',
+      },
+      spawn: 'from-registry',
+    },
     /**
      * The crawl forward to Deck A. It has to exist here as well as at the far
      * end, or the spine route is one-way: the player could drop out of Command
@@ -306,6 +331,7 @@ export const ROOMS: Record<string, RoomDef> = {
   ...ROOMS_D,
   ...ROOMS_B,
   ...ROOMS_E,
+  ...ROOMS_F,
   'c-bunk': cBunk,
   'c-corridor': cCorridor,
   'c-commons': cCommons,

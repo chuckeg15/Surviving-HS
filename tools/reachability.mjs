@@ -72,6 +72,7 @@ for (const f of [
   'data/deck-b.ts',
   'data/deck-d.ts',
   'data/deck-e.ts',
+  'data/deck-f.ts',
   'data/content.ts',
 ]) {
   const t = text.get(path.join(SRC, f)) ?? '';
@@ -97,6 +98,7 @@ const mapFiles = [
   'data/deck-b.ts',
   'data/deck-d.ts',
   'data/deck-e.ts',
+  'data/deck-f.ts',
 ];
 const mapText = mapFiles.map((f) => text.get(path.join(SRC, f)) ?? '').join('\n');
 
@@ -105,7 +107,7 @@ const mapText = mapFiles.map((f) => text.get(path.join(SRC, f)) ?? '').join('\n'
 // Anchored on the declaration, not on the bare word: the file also imports
 // INTERACTABLES_A, and slicing from the import swept every clue in the file
 // into this check and reported ten false positives.
-const interFiles = ['data/content.ts', 'data/deck-a.ts'];
+const interFiles = ['data/content.ts', 'data/deck-a.ts', 'data/deck-f.ts'];
 let interBlock = '';
 for (const f of interFiles) {
   const t = text.get(path.join(SRC, f)) ?? '';

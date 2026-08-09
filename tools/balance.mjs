@@ -14,6 +14,7 @@
  *   node tools/balance.mjs            # summary
  *   node tools/balance.mjs --runs 400 # more samples
  *   node tools/balance.mjs --json     # machine-readable
+ *   node tools/balance.mjs --reuse    # a dev server is already on --port
  */
 
 import { chromium } from 'playwright';
@@ -23,14 +24,17 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const PORT = 5179;
 
 function arg(name, fallback = null) {
   const i = process.argv.indexOf('--' + name);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
 const RUNS = Number(arg('runs', 300));
+const PORT = Number(arg('port', 5179));
 const JSON_OUT = process.argv.includes('--json');
+// Booting vite and Chromium costs far more than 36,000 battles do. During a
+// tuning pass the server is left running and only the browser is recycled.
+const REUSE = process.argv.includes('--reuse');
 
 function findChromium() {
   const base = process.env.PLAYWRIGHT_BROWSERS_PATH || '/opt/pw-browsers';
@@ -52,11 +56,14 @@ async function waitForServer(url, timeoutMs = 40000) {
 }
 
 async function main() {
-  const server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
-    cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  server.stdout.on('data', () => {});
-  server.stderr.on('data', (d) => process.stderr.write('[vite] ' + d));
+  let server = null;
+  if (!REUSE) {
+    server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
+      cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    server.stdout.on('data', () => {});
+    server.stderr.on('data', (d) => process.stderr.write('[vite] ' + d));
+  }
   console.error('[dbg] waiting for server...');
   if (!(await waitForServer(`http://localhost:${PORT}/`))) throw new Error('server down');
   console.error('[dbg] server up');
@@ -80,40 +87,119 @@ async function main() {
     const { BattleScene, TESSERAE, ENCOUNTERS, effectiveness } =
       await import('/src/combat/battle.ts');
 
+    const expected = (a, foe) => a.power * effectiveness(a.aspect, foe.def.aspect);
+
+    /** Best single blow one combatant can land on the other, in damage. */
+    const bestHit = (src, dst) =>
+      src.def.abilities.reduce(
+        (m, a) => Math.max(m, a.power * effectiveness(a.aspect, dst.def.aspect)),
+        1,
+      );
+    /** Damage a combatant buys per point of coherence. Prices grip in damage. */
+    const perCoherence = (src, dst) =>
+      src.def.abilities.reduce(
+        (m, a) => Math.max(m, (a.power * effectiveness(a.aspect, dst.def.aspect)) / Math.max(1, a.cost)),
+        0.5,
+      );
+
+    /**
+     * How many of the target's turns a status actually bites for.
+     * `tickStatuses` decrements before it checks, so the tick that takes a
+     * status from 1 to gone never fires: N turns is N-1 turns of effect.
+     */
+    const bite = (turns, chance) => Math.max(0, turns - 1) * chance;
+
+    /**
+     * The damage-equivalent of everything an ability does that is not damage.
+     *
+     * The old scoring function was `power * effectiveness` and nothing else, so
+     * it could not represent one single rider in a system whose stated design
+     * rule is that no ability may be a renamed damage number. Every guard and
+     * every control ability in the game measured dead under it \x7f including
+     * the ones the enemies win with. That is an instrument fault, not five
+     * coincidences: a tool that cannot see a rider cannot tell a dead ability
+     * from an unmeasurable one.
+     *
+     * Every price below is the rule it models, converted into damage. None of
+     * them is a taste knob, and none was moved to make a number look better.
+     */
+    const rider = (inf, me, foe) => {
+      const n = bite(inf.turns, inf.chance);
+      switch (inf.status) {
+        // 2 coherence a turn against +1/turn regeneration is 1 net, and a
+        // coherence is worth whatever damage that cast buys with it.
+        case 'frayed': return n * 1 * perCoherence(foe, me);
+        // damage() multiplies an anchored attacker's output by 0.65.
+        case 'anchored': return n * 0.35 * bestHit(foe, me);
+        // 35% of unsure strikes are lost, and the cast cannot read.
+        case 'static': return n * 0.35 * bestHit(foe, me);
+        // The next hit taken is x1.5, once.
+        case 'bleedover': return inf.chance * 0.5 * bestHit(me, foe);
+        // Everything but strikes is locked. A kit with no strike in it is
+        // exempt by rule, so sealing it is worth nothing.
+        case 'sealed':
+          return foe.def.abilities.some((a) => a.kind === 'strike')
+            ? n * 0.35 * bestHit(foe, me)
+            : 0;
+        default: return 0;
+      }
+    };
+
+    const worth = (a, me, foe) => {
+      let v = expected(a, foe);
+      for (const inf of a.inflict ?? []) {
+        // Re-applying a status the target already carries buys nothing.
+        if (!foe.statuses.has(inf.status)) v += rider(inf, me, foe);
+      }
+      if (a.selfBuff) {
+        // Guards are cleared at the top of every turn, so a brace only ever
+        // covers the opponent's next action \x7f and only if you act first.
+        if (a.selfBuff.guard && me.def.grip >= foe.def.grip) {
+          v += a.selfBuff.guard * bestHit(foe, me);
+        }
+        if (a.selfBuff.coherence) {
+          const gained = Math.min(a.selfBuff.coherence, me.maxCoherence - me.coherence);
+          v += gained * perCoherence(me, foe);
+        }
+        if (a.selfBuff.integrity) {
+          v += Math.min(a.selfBuff.integrity, me.maxIntegrity - me.integrity);
+        }
+      }
+      // A read is +30% damage for the rest of the fight, so it removes about a
+      // quarter of the turns still needed to finish the job.
+      if (a.kind === 'read' && !foe.analysed) v += 0.23 * foe.integrity;
+      return v;
+    };
+
+    /** Whether an ability would change the board at all, rather than repeat it. */
+    const changes = (a, foe) =>
+      a.kind === 'read'
+        ? !foe.analysed
+        : (a.inflict ?? []).some((i) => !foe.statuses.has(i.status));
+
     /**
      * Player policies. Each stands in for a way a real person plays.
-     *  - greedy:   always the biggest expected damage. The "is there a
-     *              dominant strategy" probe.
+     *  - greedy:   always the biggest expected damage, riders ignored. The "is
+     *              there a dominant damage strategy" probe, deliberately blind.
      *  - random:   picks anything affordable. The floor.
-     *  - considered: heals when hurt, guards when out of coherence, otherwise
-     *              best expected damage. What a thoughtful player does.
-     *  - support:  prefers control/disrupt/read. Probes whether the
-     *              non-damage kit is viable at all.
+     *  - considered: picks the highest total worth. What a thoughtful player
+     *              does \x7f it reads first, heals when a heal is not wasted,
+     *              braces when grip is the scarce thing, and otherwise hits.
+     *  - support:  control first, and only control that changes something.
+     *              Probes whether the non-damage kit is a strategy at all.
      */
-    const expected = (a, foe) => a.power * effectiveness(a.aspect, foe.def.aspect);
+    const byWorth = (me, foe) => (b, a) => (worth(a, me, foe) > worth(b, me, foe) ? a : b);
     const policies = {
       greedy: (me, foe, kit) =>
         kit.reduce((b, a) => (expected(a, foe) > expected(b, foe) ? a : b)),
       random: (me, foe, kit, rng) => kit[rng.int(kit.length)],
-      // What a thoughtful player actually does: open by reading the cast,
-      // recover when out of coherence, heal when badly hurt, otherwise hit
-      // with the best-matched strike available.
-      considered: (me, foe, kit, rng) => {
-        const hurt = me.integrity / me.maxIntegrity < 0.4;
-        const strikes = kit.filter((a) => a.power > 0);
-        const cheapest = strikes.length ? Math.min(...strikes.map((a) => a.cost)) : 99;
-        if (!foe.analysed) { const r = kit.find((a) => a.kind === 'read'); if (r) return r; }
-        if (hurt) { const m = kit.find((a) => a.kind === 'mend'); if (m) return m; }
-        if (me.coherence < cheapest) { const g = kit.find((a) => a.kind === 'guard'); if (g) return g; }
-        if (strikes.length) return strikes.reduce((b, a) => (expected(a, foe) > expected(b, foe) ? a : b));
-        return kit[rng.int(kit.length)];
-      },
-      support: (me, foe, kit, rng) => {
-        const s = kit.filter((a) => a.kind === 'control' || a.kind === 'disrupt' || a.kind === 'read');
-        if (s.length && rng.chance(0.6)) return s[rng.int(s.length)];
-        const str = kit.filter((a) => a.power > 0);
-        if (str.length) return str.reduce((b, a) => (expected(a, foe) > expected(b, foe) ? a : b));
-        return kit[rng.int(kit.length)];
+      considered: (me, foe, kit) => kit.reduce(byWorth(me, foe)),
+      support: (me, foe, kit) => {
+        const ctl = kit.filter(
+          (a) => (a.kind === 'control' || a.kind === 'disrupt' || a.kind === 'read') && changes(a, foe),
+        );
+        if (ctl.length) return ctl.reduce(byWorth(me, foe));
+        return kit.reduce(byWorth(me, foe));
       },
     };
 
@@ -180,7 +266,7 @@ async function main() {
 
   console.error('[dbg] evaluate done');
   await browser.close();
-  server.kill('SIGTERM');
+  server?.kill('SIGTERM');
 
   if (JSON_OUT) {
     writeFileSync(path.join(ROOT, 'shots', 'balance.json'), JSON.stringify(data, null, 2));

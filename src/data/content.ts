@@ -10,6 +10,7 @@ import { CLUES_D } from "@/data/deck-d";
 import { CLUES_B } from "@/data/deck-b";
 import { CLUES_E } from "@/data/deck-e";
 import { CLUES_A, DEDUCTIONS_A, INTERACTABLES_A } from "@/data/deck-a";
+import { CLUES_F, DEDUCTIONS_F, INTERACTABLES_F } from "@/data/deck-f";
 import { GameState, BackgroundId, RelationLevel, relationAtLeast } from '@/game/state';
 import { ActorLook } from '@/art/actors';
 import { PAL } from '@/art/palette';
@@ -161,6 +162,7 @@ export const CLUES: Record<string, Clue> = {
   ...CLUES_B,
   ...CLUES_E,
   ...CLUES_A,
+  ...CLUES_F,
   'transfer-record': {
     id: 'transfer-record',
     title: 'TRANSFER RECORD',
@@ -296,6 +298,7 @@ export interface Deduction {
 
 export const DEDUCTIONS: Record<string, Deduction> = {
   ...DEDUCTIONS_A,
+  ...DEDUCTIONS_F,
   D5: {
     id: 'D5',
     claim: 'Hessa is in Medical Annex 3.',
@@ -418,6 +421,7 @@ const has = (s: GameState, c: string) => clearancesOf(s).includes(c);
 
 export const INTERACTABLES: Record<string, InteractDef> = {
   ...INTERACTABLES_A,
+  ...INTERACTABLES_F,
   // --- encounter triggers ------------------------------------------------
   // Content that exists but nothing can reach is content that does not exist.
   // Each of these is the ONLY way its encounter is entered.
@@ -929,6 +933,10 @@ export const INTERACTABLES: Record<string, InteractDef> = {
         'There is no such hold on this ship. You have read the manifest. Everyone has read the manifest.',
       ],
       clue: 'cold-registry',
+      // The lift has been listing DECK F and refusing it since the first time
+      // the player opened the panel. From here on the refusal reads differently,
+      // because they have now been over the consignment on their hands and knees.
+      flag: 'saw-cold-registry',
     }),
   },
   'sentinel-post': {

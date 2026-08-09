@@ -10,7 +10,7 @@ import { App } from '@/game/app';
 import { TitleScene, CharCreateScene, JournalScene, SettingsScene } from '@/ui/menus';
 import { GameState } from '@/game/state';
 import { TouchControls } from '@/ui/touch';
-import { BACKGROUNDS, CLUES } from '@/data/content';
+import { BACKGROUNDS, CLUES, INTERACTABLES } from '@/data/content';
 import { audio } from '@/core/audio';
 import { getTileAtlas } from '@/art/tiles';
 
@@ -104,6 +104,48 @@ async function boot(): Promise<void> {
           seed(name === 'deck-a' ? 'a-command' : name);
           openChapterTwo(app.state, 'O2');
           app.replace(new ExploreScene());
+          break;
+        }
+        case 'deck-f':
+        case 'f-landing':
+        case 'f-hold':
+        case 'f-plant':
+        case 'f-shuttle':
+        case 'f-registry': {
+          // Same rule as Deck A: walk the real gate rather than teleport past
+          // it. The lift clearance comes from the chapter threshold, and the
+          // vault clearance comes from driving the actual wheel interactable,
+          // twice, exactly as a player has to \x7f so a shot of the Cold
+          // Registry is a shot of a room somebody could stand in.
+          const { openChapterTwo } = await import('@/ui/chapter');
+          seed(name === 'deck-f' ? 'f-landing' : name);
+          openChapterTwo(app.state, 'O4');
+          for (let i = 0; i < 2; i++) {
+            // Applying the returned flag is what ExploreScene.interact does
+            // between presses; without it the second turn of the wheel would
+            // re-read the notice forever.
+            const res = INTERACTABLES['vault-dogs'].run(app.state);
+            if (res.flag) app.state.setFlag(res.flag, true);
+          }
+          app.replace(new ExploreScene());
+          break;
+        }
+        case 'kit': {
+          // A triage aide standing at the muster station, having lifted a ward
+          // tag and Trave's key: a state a real player reaches, and the only
+          // one that shows all three detail states at once — a live verb, a
+          // verb refused with its reason, and an object with no verb at all.
+          // Shot in a corridor the screen is entirely grey and proves nothing.
+          const { KitScene } = await import('@/ui/inventory');
+          seed('c-muster');
+          const med = BACKGROUNDS.find((x) => x.id === 'medical')!;
+          app.state.profile.background = 'medical';
+          app.state.inventory.clear();
+          for (const it of med.items) app.state.addItem(it);
+          app.state.addItem('hazard-tag');
+          app.state.addItem('trave-key');
+          app.replace(new ExploreScene());
+          app.push(new KitScene());
           break;
         }
         case 'shipmap': {

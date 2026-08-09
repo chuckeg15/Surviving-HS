@@ -53,7 +53,7 @@ const ROSTER_ABILITIES: Record<string, Ability> = {
   'rust-creep': {
     id: 'rust-creep', name: 'RUST CREEP', kind: 'strike', aspect: 'corrosive', cost: 3, power: 10,
     desc: 'Works solvent into the join and waits. The waiting is the weapon.',
-    inflict: { status: 'frayed', turns: 2, chance: 0.5 },
+    inflict: [{ status: 'frayed', turns: 2, chance: 0.5 }],
   },
   /**
    * A point cheaper than RUST CREEP and no rider, so neither is strictly
@@ -107,7 +107,7 @@ const ROSTER_ABILITIES: Record<string, Ability> = {
   'escalate': {
     id: 'escalate', name: 'ESCALATE', kind: 'strike', aspect: 'cognitive', cost: 3, power: 12,
     desc: 'The next step in the procedure, taken early. Leaves the seam open.',
-    inflict: { status: 'bleedover', turns: 2, chance: 0.6 },
+    inflict: [{ status: 'bleedover', turns: 2, chance: 0.6 }],
   },
   /** Watch standard issue, unchanged from the shared kit. */
   'baton': {
@@ -124,7 +124,7 @@ const ROSTER_ABILITIES: Record<string, Ability> = {
   'caution': {
     id: 'caution', name: 'CAUTION', kind: 'control', aspect: 'kinetic', cost: 2, power: 3,
     desc: 'A formal warning, delivered hard.',
-    inflict: { status: 'anchored', turns: 2, chance: 0.8 },
+    inflict: [{ status: 'anchored', turns: 2, chance: 0.8 }],
   },
   /**
    * At grip 9 this guard actually works — it is set before the player acts, so
@@ -149,7 +149,7 @@ const ROSTER_ABILITIES: Record<string, Ability> = {
   'redact': {
     id: 'redact', name: 'REDACT', kind: 'disrupt', aspect: 'cognitive', cost: 3, power: 10,
     desc: 'Strikes the part of the cast that knows how to help itself.',
-    inflict: { status: 'sealed', turns: 2, chance: 0.75 },
+    inflict: [{ status: 'sealed', turns: 2, chance: 0.75 }],
   },
   /**
    * Field, and one point of expected damage above REDACT against kinetic and
@@ -160,7 +160,7 @@ const ROSTER_ABILITIES: Record<string, Ability> = {
   'null-clause': {
     id: 'null-clause', name: 'NULL CLAUSE', kind: 'disrupt', aspect: 'field', cost: 2, power: 8,
     desc: 'Cites the clause that says you are not here. Static.',
-    inflict: { status: 'static', turns: 2, chance: 0.6 },
+    inflict: [{ status: 'static', turns: 2, chance: 0.6 }],
   },
   /**
    * More coherence than FORM UP, less brace, so neither guard dominates the
