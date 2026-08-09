@@ -187,20 +187,35 @@ function pipeV(s: Surface, x: number, y: number, h: number, dark: string, body: 
  * shade is dithered rather than solid so a 6x6 field reads as plating and not
  * as a chequerboard.
  */
-function plateGround(s: Surface): void {
-  // The seam is the single most-repeated mark in the game — it appears on every
-  // deck tile of every room. At full ramp contrast it stops reading as plating
-  // and starts reading as graph paper, so it sits between iron0 and iron1 and
-  // the lit lip is dithered rather than solid.
+/**
+ * Deck plating.
+ *
+ * The seam is the single most-repeated mark in the game: it is on every deck
+ * tile of every room. Softening its contrast was not enough on its own — while
+ * every variant carried a seam on its top AND left edge, every tile in the ship
+ * was outlined, and a wide room came out as graph paper at 5x however gentle
+ * the line was.
+ *
+ * Plating is laid in panels, not in squares. Each variant now carries the seam
+ * on a different pair of edges, so neighbouring tiles merge into runs of two
+ * and three and the grid stops being uniform. The variants are chosen per tile
+ * from the room's floor list, so the panel joins fall irregularly without any
+ * room having to author them.
+ */
+function plateGround(s: Surface, edges: 'both' | 'top' | 'left' | 'none' = 'both'): void {
   const seam = mix(PAL.iron0, PAL.iron1, 0.5);
   const lip = mix(PAL.iron1, PAL.iron2, 0.6);
   rect(s, 0, 0, 16, 16, PAL.iron1);
-  hline(s, 0, 0, 16, seam);
-  vline(s, 0, 1, 15, seam);
-  dither(s, 1, 1, 15, 1, lip, 3);
-  dither(s, 1, 2, 1, 14, lip, 3);
-  dither(s, 1, 15, 15, 1, seam, 2);
-  dither(s, 15, 1, 1, 14, seam, 2);
+  if (edges === 'both' || edges === 'top') {
+    hline(s, 0, 0, 16, seam);
+    dither(s, 1, 1, 15, 1, lip, 3);
+    dither(s, 1, 15, 15, 1, seam, 2);
+  }
+  if (edges === 'both' || edges === 'left') {
+    vline(s, 0, 1, 15, seam);
+    dither(s, 1, 2, 1, 14, lip, 3);
+    dither(s, 15, 1, 1, 14, seam, 2);
+  }
 }
 
 function drawPlateA(s: Surface): void {
@@ -211,7 +226,7 @@ function drawPlateA(s: Surface): void {
 }
 
 function drawPlateB(s: Surface): void {
-  plateGround(s);
+  plateGround(s, 'left');
   // A weld bead: alternating pixels read as a bead, the broken line under it
   // as the heat shadow. Same average value as .a, different placement.
   for (let x = 4; x < 13; x++) px(s, x, 9, x % 2 ? PAL.iron2 : PAL.iron0);
@@ -221,7 +236,7 @@ function drawPlateB(s: Surface): void {
 }
 
 function drawPlateC(s: Surface): void {
-  plateGround(s);
+  plateGround(s, 'top');
   // Stencilled registration mark, mostly walked off.
   hline(s, 9, 5, 4, PAL.iron2);
   vline(s, 9, 5, 4, PAL.iron2);
@@ -231,7 +246,7 @@ function drawPlateC(s: Surface): void {
 }
 
 function drawPlateWorn(s: Surface): void {
-  plateGround(s);
+  plateGround(s, 'none');
   const rng = new Rng('floor.plate.worn');
   // Equal parts ground-in grime and polished-through metal, so the mean value
   // stays with the other plate variants instead of going blotchy.
@@ -720,52 +735,69 @@ function drawSign(s: Surface): void {
 // the player walks north-south through them.
 // =====================================================================
 
+/**
+ * The jamb, and the reason it is this bright.
+ *
+ * A door tile sits inside a wall band drawn from the same iron family, and the
+ * shell used to be `iron1` — the wall's own value. The result was that the four
+ * doors off the habitation ring read as lockers bolted to the bulkhead, and the
+ * only reason a player could find an exit at all was the signage beside it.
+ *
+ * A door has to break the wall's silhouette to read as a way out. Two values
+ * the wall never uses do that: a hard `iron4` jamb, and a `void0` recess behind
+ * the leaves so the opening reads as depth rather than as another flat panel.
+ */
 function doorShell(s: Surface): void {
-  rect(s, 0, 0, 16, 16, PAL.iron1);
+  rect(s, 0, 0, 16, 16, PAL.void0);
   vline(s, 0, 0, 16, PAL.iron0);
+  vline(s, 1, 0, 16, PAL.iron4); // jamb, lit
+  vline(s, 14, 0, 16, PAL.iron3);
   vline(s, 15, 0, 16, PAL.iron0);
-  vline(s, 1, 0, 16, PAL.iron2);
-  vline(s, 14, 0, 16, PAL.iron2);
+  hline(s, 0, 0, 16, PAL.iron4); // lintel
+  hline(s, 0, 1, 16, PAL.iron2);
+  hline(s, 0, 15, 16, PAL.iron0); // sill, in shadow
 }
 
 function doorLeaf(s: Surface, x: number, w: number): void {
-  bevel(s, x, 0, w, 16, 'iron', 2);
-  hline(s, x, 5, w, PAL.iron3);
-  hline(s, x, 6, w, PAL.iron1);
+  bevel(s, x, 2, w, 13, 'iron', 2);
+  hline(s, x, 6, w, PAL.iron3);
+  hline(s, x, 7, w, PAL.iron1);
 }
 
 function drawDoorClosed(s: Surface): void {
   doorShell(s);
   doorLeaf(s, 2, 6);
   doorLeaf(s, 8, 6);
-  vline(s, 7, 0, 16, PAL.void1);
+  // The parting line, two pixels of void. One pixel disappeared under the
+  // lightmap in a dim room, which is where knowing an exit exists matters most.
+  rect(s, 7, 2, 2, 13, PAL.void0);
   hazardPaint(s, 2, 11, 12, 3, PAL.amber1, PAL.iron1, PAL.amber2);
-  vline(s, 7, 11, 3, PAL.void1);
-  hline(s, 6, 1, 4, PAL.void1);
-  hline(s, 6, 2, 4, PAL.amber2); // status tell-tale: shut and powered
+  rect(s, 7, 11, 2, 3, PAL.void0);
+  hline(s, 6, 2, 4, PAL.void0);
+  hline(s, 6, 3, 4, PAL.amber2); // status tell-tale: shut and powered
 }
 
 function drawDoorOpening(s: Surface): void {
   doorShell(s);
-  rect(s, 4, 0, 8, 16, PAL.void1);
-  dither(s, 4, 12, 8, 4, PAL.iron1, 2); // deck appearing in the gap
+  rect(s, 4, 2, 8, 13, PAL.void0);
+  dither(s, 4, 12, 8, 3, PAL.iron1, 2); // deck appearing in the gap
   doorLeaf(s, 2, 3);
   doorLeaf(s, 11, 3);
-  vline(s, 4, 0, 16, PAL.iron4); // leading edges catch the corridor light
-  vline(s, 11, 0, 16, PAL.iron4);
-  hline(s, 6, 1, 4, PAL.void1);
-  hline(s, 6, 2, 4, PAL.amber3);
+  vline(s, 4, 2, 13, PAL.iron4); // leading edges catch the corridor light
+  vline(s, 11, 2, 13, PAL.iron4);
+  hline(s, 6, 2, 4, PAL.void0);
+  hline(s, 6, 3, 4, PAL.amber3);
 }
 
 function drawDoorOpen(s: Surface): void {
   doorShell(s);
-  rect(s, 2, 0, 12, 16, PAL.iron1);
-  dither(s, 2, 0, 12, 3, PAL.iron0, 2);
-  dither(s, 2, 13, 12, 3, PAL.iron0, 2);
-  vline(s, 2, 0, 16, PAL.iron0); // the leaves, stowed in the jambs
-  vline(s, 3, 0, 16, PAL.iron2);
-  vline(s, 12, 0, 16, PAL.iron2);
-  vline(s, 13, 0, 16, PAL.iron0);
+  rect(s, 2, 2, 12, 13, PAL.iron1);
+  dither(s, 2, 2, 12, 3, PAL.iron0, 2);
+  dither(s, 2, 12, 12, 3, PAL.iron0, 2);
+  vline(s, 2, 2, 13, PAL.iron0); // the leaves, stowed in the jambs
+  vline(s, 3, 2, 13, PAL.iron2);
+  vline(s, 12, 2, 13, PAL.iron2);
+  vline(s, 13, 2, 13, PAL.iron0);
   hline(s, 4, 7, 8, PAL.iron0); // door track across the threshold
   hline(s, 4, 8, 8, PAL.iron2);
 }
@@ -777,8 +809,8 @@ function drawDoorLocked(s: Surface): void {
   hline(s, 2, 9, 12, PAL.iron1);
   bolt(s, 4, 8, PAL.iron4, PAL.iron1);
   bolt(s, 11, 8, PAL.iron4, PAL.iron1);
-  hline(s, 6, 2, 4, PAL.ember2);
-  px(s, 7, 2, PAL.ember3);
+  hline(s, 6, 3, 4, PAL.ember2);
+  px(s, 7, 3, PAL.ember3);
 }
 
 function drawDoorSealed(s: Surface): void {
