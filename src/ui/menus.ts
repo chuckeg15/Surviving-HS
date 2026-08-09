@@ -1123,8 +1123,14 @@ export class ChapterEndScene implements Scene {
       cy += 10;
     }
     if (this.t > 1) {
-      const blink = Math.sin(this.t * 4) > 0;
-      if (blink) p.text('Z', VW - 20, VH - 18, { color: PAL.halo3 });
+      // A bare blinking key names a button without saying what it does, and
+      // this is the one screen in the game where the player has just made an
+      // irreversible choice and most wants to know what happens next. The
+      // glyph still blinks \x7f that is what draws the eye \x7f but the label
+      // beside it holds still, because a blinking word is harder to read than
+      // a still one.
+      footer(p, ['Z continue']);
+      if (Math.sin(this.t * 4) > 0) p.text('\x05', VW - 16, VH - 9, { color: PAL.halo3 });
     }
   }
 }

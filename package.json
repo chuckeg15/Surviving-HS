@@ -9,13 +9,14 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && npm run test:reach && npm run test:progression && npm run test:e2e",
+    "test": "npm run typecheck && npm run test:reach && npm run test:polish && npm run test:progression && npm run test:e2e",
     "test:e2e": "node tests/e2e/run.mjs",
     "shots": "node tools/capture.mjs",
     "test:audio": "node tools/audiocheck.mjs",
     "test:reach": "node tools/reachability.mjs",
     "test:progression": "node tools/progression.mjs",
-    "test:balance": "node tools/balance.mjs"
+    "test:balance": "node tools/balance.mjs",
+    "test:polish": "node tools/polish.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"

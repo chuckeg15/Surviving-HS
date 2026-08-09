@@ -235,14 +235,31 @@ async function main() {
   await page.waitForTimeout(1500);
   check('enters a battle', (await probe()).scene === 'battle');
   await shot('10-battle');
-  // Messages auto-advance, so a fixed key sequence races the clock. Drive it
-  // by observed state instead: back out of any submenu, select READ, confirm.
+  // Messages auto-advance, so a fixed key sequence races the clock \u2014 and
+  // the cursor cannot be reset by wrapping either. This used to press Up three
+  // times to "return to the top", which only worked while the menu had exactly
+  // three rows; adding a fourth action silently made it land one row further
+  // down and the scan stopped happening. Wrapping never resets anything.
+  //
+  // So it reads the cursor and walks to the row it wants. That stays correct
+  // however many actions the menu grows.
+  const menu = () => page.evaluate(() => window.__candlewake.app.scene?.debugMenu ?? null);
   let scanned = false;
-  for (let i = 0; i < 8 && !scanned; i++) {
-    await key('KeyX');
-    await page.waitForTimeout(200);
-    await key('ArrowUp', 3, 70);
-    await key('ArrowDown');
+  for (let i = 0; i < 10 && !scanned; i++) {
+    // Get to the top-level menu: clear messages, back out of any submenu.
+    for (let g = 0; g < 12; g++) {
+      const m = await menu();
+      if (m?.phase === 'menu') break;
+      await key(m?.phase === 'abilities' ? 'KeyX' : 'KeyZ');
+      await page.waitForTimeout(220);
+    }
+    // Walk the cursor onto READ (index 1) rather than assuming where it is.
+    for (let g = 0; g < 8; g++) {
+      const m = await menu();
+      if (!m || m.menuIndex === 1) break;
+      await key('ArrowDown');
+      await page.waitForTimeout(90);
+    }
     await key('KeyZ');
     await page.waitForTimeout(700);
     await key('KeyZ', 2, 300);
