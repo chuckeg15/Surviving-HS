@@ -222,6 +222,54 @@ that does not exist, and had therefore reported success with zero tests for the
 project's whole life. It now runs typecheck, reachability, progression and the
 playtest.
 
+## Deck F, items, and what is NOT verified about combat
+
+**Deck F is built and walkable.** Five rooms: the lift landing and cargo
+office, Hold 4 (declared cargo), the plant, the Cold Registry, and the shuttle
+bay. It unseals at the Chapter Two threshold alongside Deck A, for a different
+reason — Deck A had to stay shut because the red herring pointed at the
+Captain; Deck F had to stay shut because the Cold Registry answers, in one
+room, most of what Chapter One is for asking. All five were captured and
+looked at.
+
+**Items exist now.** Eleven definitions, a kit screen in the pause menu, and a
+USE verb. The find was that `duct-hatch` gated two of its seven canon routes
+on flags `telltale-killed` and `hazard-tag-placed` that **nothing in the game
+ever set** — and the loom and medical backgrounds each advertise one of those
+routes verbatim on the character-creation form. The intake screen was
+promising routes that did not exist.
+
+Related: `world/map.ts` mapped legend character `R` to `prop.breaker`, the tile
+existed, and **no room layout in the ship contained an `R`**. The Commons
+breaker panel the loom background names had nothing in the room to open. Fixed.
+
+**Combat balance is now UNVERIFIED.** The subagent working on it was cut off
+by a session limit partway through. What landed is a real structural change —
+`Ability.inflict` widened from a single status to a list, and `clears` promoted
+from a hardcoded check on one ability id to a declared field — plus edits to
+the scorer in `tools/balance.mjs`. Battles still resolve and the playtest
+passes.
+
+But `node tools/balance.mjs` does not complete in this container even at 12
+samples, so **no post-change numbers exist**. Every balance figure quoted in
+COMBAT_DESIGN.md and in the section above predates these edits and should be
+treated as stale until a run finishes. In particular it is not known whether
+`truncheon` is still dominant, whether `restrain` and `tallyman/audit` are
+still dead, or whether control-first play is still uncompetitive.
+
+Two subagents were also cut off mid-task on Deck F and combat; a checkpoint
+commit captured their work rather than losing it to a container restart. The
+gaps they left are listed above rather than quietly closed.
+
+## A note on measurement hygiene
+
+One run of the playtest in this session reported ten failures that were
+entirely an artefact of a stale dev server, left behind by a killed subagent,
+squatting on the port the suite wanted — so the test drove old code and
+reported real, meaningless output. The suite now spawns with `--strictPort`
+and the run is only trustworthy when it starts its own server. Worth knowing
+before believing a red result.
+
 ## Visual issues still open
 
 - The Loom hall (`e-loom`) is sparse below its midline and its grated floor
@@ -231,13 +279,21 @@ playtest.
 
 Found by inspecting captured frames:
 
-- Deck-plate seams were softened but the floor still reads as a slightly
-  regular grid at 5x scale in wide rooms.
+- ~~Deck-plate seams read as a regular grid at 5x~~ — fixed. Softening the
+  contrast had not been enough: every plate variant carried a seam on its top
+  AND left edge, so every tile in the ship was outlined. Each variant now seams
+  a different pair of edges, and since variants are already chosen per tile the
+  panel joins fall irregularly.
 - Commons decking was over-corrected into flat speckle and then partially
   restored; it still carries less structure than the other floor families.
-- `prop.table` reads as a flat grey slab with weak separation from the deck.
-- Doors in a wall row read as small panels rather than obviously as exits; the
-  corridor's four doors are only legible because of the signage beside them.
+- ~~`prop.table` reads as a flat grey slab~~ — fixed. `drawTableEnd` called
+  `keyline()` and `drawTable` did not, so a run was outlined at its cap and
+  nowhere along its length.
+- ~~Doors read as small panels rather than exits~~ — fixed. The shell was
+  `iron1`, the same value as the wall band it sits in, so nothing broke the
+  wall's silhouette. Now a hard `iron4` jamb and lintel over a `void0` recess,
+  and a two-pixel parting line, because one pixel vanished under the lightmap
+  in a dim room.
 - The corridor is 31 tiles wide with a sparse middle section.
 - Wall caps and faces are marked `over`, so a character can walk behind the top
   of a wall — this is correct, but it has not been tested against every prop.
