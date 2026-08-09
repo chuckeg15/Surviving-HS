@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>CANDLEWAKE</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b1113'/%3E%3Crect x='6' y='3' width='4' height='9' fill='%2354e0c8'/%3E%3C/svg%3E" />
+    <style>
+      html, body {
+        margin: 0; padding: 0; height: 100%; overflow: hidden;
+        background: #05080a; color: #cfe3e0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        overscroll-behavior: none;
+      }
+      #stage {
+        position: fixed; inset: 0; display: grid; place-items: center;
+        background: #05080a;
+      }
+      #frame {
+        position: relative;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        transform-origin: center center;
+        box-shadow: 0 0 0 1px #10191c, 0 12px 60px -20px #000;
+      }
+      #frame > canvas {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        display: block;
+      }
+      #world { z-index: 1; }
+      #ui { z-index: 2; }
+      #boot {
+        position: fixed; inset: 0; z-index: 10; display: grid; place-items: center;
+        background: #05080a; color: #4a6b68; letter-spacing: .18em; font-size: 12px;
+        transition: opacity .4s linear;
+      }
+      #boot.gone { opacity: 0; pointer-events: none; }
+      canvas:focus, canvas:focus-visible { outline: none; }
+      .noselect { user-select: none; -webkit-user-select: none; }
+    </style>
+  </head>
+  <body class="noselect">
+    <div id="stage">
+      <div id="frame">
+        <canvas id="world"></canvas>
+        <canvas id="ui" tabindex="0" aria-label="CANDLEWAKE game viewport"></canvas>
+      </div>
+    </div>
+    <div id="boot">LOADING&#8230;</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
