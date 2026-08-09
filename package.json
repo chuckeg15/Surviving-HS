@@ -16,7 +16,8 @@
     "test:reach": "node tools/reachability.mjs",
     "test:progression": "node tools/progression.mjs",
     "test:balance": "node tools/balance.mjs",
-    "test:polish": "node tools/polish.mjs"
+    "test:polish": "node tools/polish.mjs",
+    "test:composition": "node tools/composition.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"
