@@ -752,8 +752,29 @@ export class BattleScene implements Scene {
 
   /** Test-only view of menu state, so the playtest can navigate deterministically
    *  instead of guessing at key counts on a wrapping menu. */
-  get debugMenu(): { phase: string; menuIndex: number; abilityIndex: number } {
-    return { phase: this.phase, menuIndex: this.menuIndex, abilityIndex: this.abilityIndex };
+  get debugMenu(): {
+    phase: string;
+    menuIndex: number;
+    abilityIndex: number;
+    affordable: number[];
+  } {
+    /**
+     * `affordable` exists for the playtest. Driving a fight by mashing confirm
+     * starves: the cursor sits on an ability the cast cannot pay for, the turn
+     * never advances, coherence never regenerates, and the suite reports a
+     * stall that no player would ever experience. A harness that cannot see
+     * what the player can plainly see on screen is not testing the game.
+     */
+    const kit = this.me?.def.abilities ?? [];
+    const affordable = kit
+      .map((a, i) => (this.me && this.me.coherence >= a.cost ? i : -1))
+      .filter((i) => i >= 0);
+    return {
+      phase: this.phase,
+      menuIndex: this.menuIndex,
+      abilityIndex: this.abilityIndex,
+      affordable,
+    };
   }
 
   // --- headless simulation ----------------------------------------------

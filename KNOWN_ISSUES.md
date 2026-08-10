@@ -261,30 +261,54 @@ Two subagents were also cut off mid-task on Deck F and combat; a checkpoint
 commit captured their work rather than losing it to a container restart. The
 gaps they left are listed above rather than quietly closed.
 
-## Combat now starves, and the playtest caught it
+## Combat: measured, and it was the instrument twice
 
-Predicted in the section above and now confirmed. Driving a real battle and
-reading integrity and coherence each turn:
+The playtest's `battle resolves to an outcome` failed deterministically, and
+driving a real fight showed both sides flat out of coherence by turn four. That
+looked like a broken economy. It was not.
 
-```
-turn 0   me 96/10   foe 106/14
-turn 1   me 83/8    foe  89/11
-turn 2   me 70/6    foe  72/8
-turn 3   me 57/4    foe  55/5
-turn 4   me 44/2    foe  38/2     <- and effectively stops here
-```
+**Fights converge fine.** A new probe, `npm run test:econ`, runs the real rules
+headlessly across every tessera x encounter pairing and asks the one question
+that matters in seconds rather than in an overnight run: does the fight end,
+and in how many turns. **0 of 30 pairings stall.** The full balance tool still
+does not complete in this container; this is the narrow, fast substitute.
 
-Integrity falls cleanly for four turns and then both sides run out of
-coherence. Regeneration is +1 per turn against ability costs of 2 to 4, so
-past turn four the fight becomes several turns of STEADY to buy one strike.
-It is not a soft-lock  STEADY is free and never sealed, and an unaffordable
-pick is refused with a message  but the fight stops converging, and
-`battle resolves to an outcome` now fails deterministically in the playtest.
+What was actually wrong, both times, was the thing doing the measuring:
 
-That is a TRUE POSITIVE about the game, not a broken test, and it is the first
-hard evidence of what the unmeasured combat edits did. The fix needs the
-balance harness, which does not complete in this container, so it is recorded
-rather than guessed at.
+- **The playtest starved itself.** It cycled ability slots blind, landed on
+  something the cast could not pay for, and the turn never advanced  so
+  coherence never regenerated. The on-screen list greys out what you cannot
+  buy, so no human ever hits this. `debugMenu` now exposes `affordable` and the
+  harness reads the same fact the player can see. A harness that cannot see
+  what is plainly on screen is not testing the game.
+
+- **The first econ run indicted a tessera that was fine.** Its policy treated
+  only `kind === 'strike'` as an attack, and TALLYMAN carries its damage on two
+  `disrupt` abilities  so the policy never attacked with it once, and duly
+  reported it losing every encounter. Corrected, TALLYMAN wins 100/100/85/100/88/23.
+  It is one of the stronger kits.
+
+Correcting that also moved the average fight from 11.5 turns to **7.8**, inside
+the 8-11 target band.
+
+| tessera | win rate across the six encounters |
+|---|---|
+| kiln | 100, 95, 100, 100, 100, 43 |
+| truncheon | 83, 3, 100, 100, 100, 100 |
+| tallyman | 100, 100, 85, 100, 88, 23 |
+| lampwright | 93, 100, 100, 100, 0, 60 |
+| grey-liner | 8, 0, 100, 100, 0, 100 |
+
+Three pairings sit at 0%: grey-liner into `ivo-escalation` and `ivo-bailiff`,
+lampwright into `ivo-bailiff`. Both encounters are `lossIsFatal: false` and
+`canFlee: true`, so these are "above your weight, withdraw" rather than walls
+ defensible, but they are the weakest point in the table and grey-liner is
+plainly the thinnest kit. Left as a judgement call rather than rebalanced
+blind.
+
+**Still unmeasured:** which abilities are dominant or dead. That needs the full
+balance tool, which still does not finish here. Every dominance figure in
+COMBAT_DESIGN.md predates the ability-shape change and remains stale.
 
 ## Four subagents, four session limits
 

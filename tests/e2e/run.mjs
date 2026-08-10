@@ -305,12 +305,26 @@ async function main() {
     }
     await key('KeyZ');
     await page.waitForTimeout(120);
-    // Cycle which ability is picked. Slot 0 is the expensive strike, so a loop
-    // that always takes slot 0 stalls on "Not enough coherence" the moment the
-    // coherence economy bites - which, after the balance pass, it does.
-    for (let d = 0; d < i % 4; d++) {
-      await key('ArrowDown');
-      await page.waitForTimeout(40);
+    // Pick something the cast can actually pay for.
+    //
+    // This used to cycle `i % 4` slots blind, and it starved: the cursor would
+    // land on an ability that could not be afforded, the turn never advanced,
+    // coherence never regenerated, and the suite reported a stall no player
+    // would ever hit \u2014 the on-screen list greys out what you cannot buy,
+    // so a human simply never picks it. The harness now reads the same fact
+    // through debugMenu.affordable and moves onto one of them.
+    {
+      const b = (await probe()).battle;
+      const list = b?.affordable ?? [];
+      if (list.length) {
+        const want = list[i % list.length];
+        for (let g = 0; g < 8; g++) {
+          const cur = (await probe()).battle;
+          if (!cur || cur.phase !== 'abilities' || cur.abilityIndex === want) break;
+          await key('ArrowDown');
+          await page.waitForTimeout(40);
+        }
+      }
     }
     await key('KeyZ');
     await page.waitForTimeout(140);

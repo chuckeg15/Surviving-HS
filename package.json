@@ -17,7 +17,8 @@
     "test:progression": "node tools/progression.mjs",
     "test:balance": "node tools/balance.mjs",
     "test:polish": "node tools/polish.mjs",
-    "test:composition": "node tools/composition.mjs"
+    "test:composition": "node tools/composition.mjs",
+    "test:econ": "node tools/econ.mjs"
   },
   "dependencies": {
     "three": "^0.170.0"
